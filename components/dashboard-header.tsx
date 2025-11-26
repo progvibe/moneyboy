@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Activity, Bell, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -21,6 +22,9 @@ export function DashboardHeader() {
               <div className="w-2 h-2 rounded-full bg-(--color-success) animate-pulse" />
               <span className="text-xs font-mono text-muted-foreground">LIVE</span>
             </div>
+            <Button asChild variant="secondary">
+              <Link href="/search">Search</Link>
+            </Button>
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
               <Bell className="w-5 h-5" />
             </Button>

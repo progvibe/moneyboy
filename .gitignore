@@ -2,11 +2,13 @@
 /node_modules
 /.pnp
 /.pnp.cjs
+.drizzle/
 
 # build outputs
 /.next
 /out
 /build
+.next
 
 # environment
 .env
