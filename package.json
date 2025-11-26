@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed:dev": "tsx scripts/seed-dev.ts"
+    "seed:dev": "tsx scripts/seed-dev.ts",
+    "ingest:finnhub": "tsx scripts/ingest-finnhub.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
