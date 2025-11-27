@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { and, gte, sql } from 'drizzle-orm'
+import { and, desc, gte, ilike, or, sql } from 'drizzle-orm'
 import { db } from '@/db/client'
 import { documents } from '@/db/schema'
 
@@ -24,8 +24,19 @@ export async function POST(req: Request) {
         )}]::text[]`
       : null
 
+  const term = query?.toString().trim()
+  const hasQuery = !!term && term.length > 1
+
   const rows = await db
-    .select()
+    .select({
+      id: documents.id,
+      title: documents.title,
+      url: documents.url,
+      source: documents.source,
+      tickers: documents.tickers,
+      publishedAt: documents.publishedAt,
+      snippet: sql<string>`left(${documents.body}, 240)`,
+    })
     .from(documents)
     .where(
       and(
@@ -33,21 +44,25 @@ export async function POST(req: Request) {
         tickers?.length
           ? sql`${documents.tickers} && ${tickerArray}`
           : sql`true`,
+        hasQuery
+          ? or(
+              ilike(documents.title, `%${term}%`),
+              ilike(documents.body, `%${term}%`),
+              ilike(sql`array_to_string(${documents.tickers}, ',')`, `%${term}%`),
+            )
+          : sql`true`,
       ),
     )
+    .orderBy(desc(documents.publishedAt))
     .limit(20)
 
   return NextResponse.json({
-    summary: `Mock summary for query: "${query}".`,
+    summary: term
+      ? `Top matches for "${term}" (recency first).`
+      : `Latest ${rows.length} documents (recency first).`,
     results: rows.map((doc) => ({
-      id: doc.id,
-      title: doc.title,
-      url: doc.url,
-      source: doc.source,
-      tickers: doc.tickers,
-      publishedAt: doc.publishedAt,
+      ...doc,
       sentiment: 'neutral',
-      snippet: `${doc.body.substring(0, 200)}...`,
     })),
   })
 }

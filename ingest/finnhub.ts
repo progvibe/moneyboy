@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { db } from "@/db/client";
 import { documentChunks, documents } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
@@ -61,6 +61,7 @@ export async function ingestFinnhubNews(opts?: { category?: string }) {
   console.log(`Fetched ${data.length} news items from Finnhub (${category}).`);
 
   let insertedCount = 0;
+  let skippedCount = 0;
 
   for (const item of data) {
     const publishedAt = new Date(item.datetime * 1000);
@@ -78,6 +79,7 @@ export async function ingestFinnhubNews(opts?: { category?: string }) {
       .limit(1);
 
     if (existing.length > 0) {
+      skippedCount++;
       continue;
     }
 
@@ -112,5 +114,7 @@ export async function ingestFinnhubNews(opts?: { category?: string }) {
     insertedCount++;
   }
 
-  console.log(`Inserted ${insertedCount} new documents into Moneyboy.`);
+  console.log(
+    `Ingestion complete. Inserted ${insertedCount}, skipped ${skippedCount} (dedup by URL).`,
+  );
 }
