@@ -41,6 +41,12 @@ export type SentimentBucket = {
   color: "success" | "destructive" | "info"
 }
 
+function getExecuteRows<T>(result: { rows?: T[] } | T[]): T[] {
+  if (Array.isArray(result)) return result
+  if ("rows" in result && Array.isArray(result.rows)) return result.rows
+  return []
+}
+
 function formatChange(current: number, previous: number): { label: string; positive: boolean } {
   if (previous === 0) {
     const positive = current > 0
@@ -81,7 +87,7 @@ function formatRelativeTime(date: Date): string {
 }
 
 export async function getMarketOverview(): Promise<MarketMetric[]> {
-  const { rows } = await db.execute<{
+  const result = await db.execute<{
     documentsCount: number
     chunkCount: number
     sourcesCount: number
@@ -99,6 +105,8 @@ export async function getMarketOverview(): Promise<MarketMetric[]> {
       (select count(*)::int from documents where "publishedAt" > now() - interval '2 days' and "publishedAt" <= now() - interval '1 day') as "prevDayCount",
       (select avg(sentiment)::float from document_chunks) as "avgSentiment"
   `)
+
+  const rows = getExecuteRows(result)
 
   const stats =
     rows[0] ?? {
@@ -178,7 +186,7 @@ export async function getLatestNews(limit = 8): Promise<NewsItem[]> {
 }
 
 export async function getWatchlistSnapshots(limit = 6): Promise<WatchlistEntry[]> {
-  const { rows } = await db.execute<{
+  const result = await db.execute<{
     ticker: string
     mentions: number
     latest: Date | null
@@ -197,6 +205,8 @@ export async function getWatchlistSnapshots(limit = 6): Promise<WatchlistEntry[]
     limit ${limit}
   `)
 
+  const rows = getExecuteRows(result)
+
   return rows.map((row) => ({
     ticker: row.ticker,
     mentions: row.mentions,
@@ -206,7 +216,7 @@ export async function getWatchlistSnapshots(limit = 6): Promise<WatchlistEntry[]
 }
 
 export async function getIndicatorSnapshots(limit = 4): Promise<IndicatorSnapshot[]> {
-  const { rows } = await db.execute<{
+  const result = await db.execute<{
     source: string
     articles: number
     latest: Date | null
@@ -226,6 +236,8 @@ export async function getIndicatorSnapshots(limit = 4): Promise<IndicatorSnapsho
     limit ${limit}
   `)
 
+  const rows = getExecuteRows(result)
+
   return rows.map((row) => {
     const { label, positive } = formatChange(row.articles, row.prev)
     return {
@@ -244,7 +256,7 @@ export async function getSentimentBuckets(limit = 4): Promise<SentimentBucket[]>
     })
     .from(documentChunks)
 
-  const { rows } = await db.execute<{
+  const result = await db.execute<{
     ticker: string
     score: number | null
   }>(sql`
@@ -258,6 +270,8 @@ export async function getSentimentBuckets(limit = 4): Promise<SentimentBucket[]>
     order by count(*) desc
     limit ${limit - 1}
   `)
+
+  const rows = getExecuteRows(result)
 
   const buckets: SentimentBucket[] = []
 
