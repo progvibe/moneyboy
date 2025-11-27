@@ -1,14 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart3 } from "lucide-react"
+import type { IndicatorSnapshot } from "@/lib/queries/dashboard"
 
-const indicators = [
-  { name: "Unemployment Rate", value: "3.7%", change: "-0.1%", trend: "down" },
-  { name: "Inflation (CPI)", value: "3.2%", change: "-0.3%", trend: "down" },
-  { name: "GDP Growth", value: "2.9%", change: "+0.4%", trend: "up" },
-  { name: "Fed Funds Rate", value: "5.33%", change: "0%", trend: "neutral" },
-]
+type EconomicIndicatorsProps = {
+  indicators: IndicatorSnapshot[]
+}
 
-export function EconomicIndicators() {
+export function EconomicIndicators({ indicators }: EconomicIndicatorsProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -19,6 +17,9 @@ export function EconomicIndicators() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-4">
+          {indicators.length === 0 && (
+            <div className="col-span-2 text-sm text-muted-foreground font-mono">No sources yet.</div>
+          )}
           {indicators.map((indicator) => (
             <div key={indicator.name} className="p-4 rounded-lg bg-secondary/30 border border-border">
               <p className="text-xs text-muted-foreground mb-2 font-mono uppercase">{indicator.name}</p>
