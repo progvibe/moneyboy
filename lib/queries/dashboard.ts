@@ -178,7 +178,7 @@ export async function getLatestNews(limit = 8): Promise<NewsItem[]> {
     title: row.title,
     source: row.source,
     url: row.url,
-    timeLabel: formatRelativeTime(row.publishedAt),
+    timeLabel: formatRelativeTime(new Date(row.publishedAt)),
     tickers: row.tickers ?? [],
     sentiment: getSentimentLabel(row.sentiment),
     summary: row.summary,
@@ -210,7 +210,7 @@ export async function getWatchlistSnapshots(limit = 6): Promise<WatchlistEntry[]
   return rows.map((row) => ({
     ticker: row.ticker,
     mentions: row.mentions,
-    latest: row.latest,
+    latest: row.latest ? new Date(row.latest) : null,
     sentiment: row.avgSentiment,
   }))
 }
