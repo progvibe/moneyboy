@@ -1,14 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import type { SentimentBucket } from "@/lib/queries/dashboard"
 
-const sentimentData = [
-  { category: "Overall Market", score: 72, label: "Bullish", icon: TrendingUp, color: "success" },
-  { category: "Tech Sector", score: 85, label: "Very Bullish", icon: TrendingUp, color: "success" },
-  { category: "Energy Sector", score: 45, label: "Bearish", icon: TrendingDown, color: "destructive" },
-  { category: "Financial Sector", score: 58, label: "Neutral", icon: Minus, color: "info" },
-]
+type SentimentAnalysisProps = {
+  buckets: SentimentBucket[]
+}
 
-export function SentimentAnalysis() {
+export function SentimentAnalysis({ buckets }: SentimentAnalysisProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -19,8 +17,11 @@ export function SentimentAnalysis() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {sentimentData.map((item) => {
-            const Icon = item.icon
+          {buckets.length === 0 && <p className="text-sm text-muted-foreground font-mono">No sentiment yet.</p>}
+          {buckets.map((item) => {
+            const Icon =
+              item.color === "success" ? TrendingUp : item.color === "destructive" ? TrendingDown : Minus
+
             return (
               <div key={item.category} className="space-y-2">
                 <div className="flex items-center justify-between">
