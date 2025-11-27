@@ -1,17 +1,19 @@
 import { Card } from "@/components/ui/card"
 import { TrendingUp, TrendingDown } from "lucide-react"
+import type { MarketMetric } from "@/lib/queries/dashboard"
 
-const markets = [
-  { name: "S&P 500", value: "4,783.45", change: "+1.24%", isPositive: true },
-  { name: "DOW", value: "37,545.33", change: "+0.89%", isPositive: true },
-  { name: "NASDAQ", value: "15,055.65", change: "+1.67%", isPositive: true },
-  { name: "BTC/USD", value: "68,432.10", change: "-2.34%", isPositive: false },
-  { name: "ETH/USD", value: "3,845.67", change: "-1.89%", isPositive: false },
-]
+type MarketOverviewProps = {
+  markets: MarketMetric[]
+}
 
-export function MarketOverview() {
+export function MarketOverview({ markets }: MarketOverviewProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {markets.length === 0 && (
+        <Card className="p-4 bg-card border-border">
+          <p className="text-sm text-muted-foreground font-mono">No metrics available yet.</p>
+        </Card>
+      )}
       {markets.map((market) => (
         <Card key={market.name} className="p-4 bg-card border-border hover:border-primary/50 transition-colors">
           <div className="space-y-2">

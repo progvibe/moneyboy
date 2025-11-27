@@ -1,51 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock } from "lucide-react"
+import type { NewsItem } from "@/lib/queries/dashboard"
 
-const newsItems = [
-  {
-    id: 1,
-    title: "Fed Signals Rate Cuts May Come Sooner Than Expected",
-    source: "Bloomberg",
-    time: "5m ago",
-    category: "Monetary Policy",
-    sentiment: "positive",
-  },
-  {
-    id: 2,
-    title: "Tech Giants Report Record Q4 Earnings, Beat Estimates",
-    source: "Reuters",
-    time: "12m ago",
-    category: "Earnings",
-    sentiment: "positive",
-  },
-  {
-    id: 3,
-    title: "Oil Prices Surge on Middle East Tensions",
-    source: "WSJ",
-    time: "25m ago",
-    category: "Commodities",
-    sentiment: "negative",
-  },
-  {
-    id: 4,
-    title: "China Manufacturing Data Shows Unexpected Growth",
-    source: "Financial Times",
-    time: "38m ago",
-    category: "Global Markets",
-    sentiment: "positive",
-  },
-  {
-    id: 5,
-    title: "Crypto Regulations Face New Congressional Scrutiny",
-    source: "CNBC",
-    time: "1h ago",
-    category: "Crypto",
-    sentiment: "neutral",
-  },
-]
+type NewsFeedProps = {
+  items: NewsItem[]
+}
 
-export function NewsFeed() {
+export function NewsFeed({ items }: NewsFeedProps) {
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -56,10 +18,16 @@ export function NewsFeed() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {newsItems.map((item) => (
-            <div
+          {items.length === 0 && (
+            <p className="text-sm text-muted-foreground font-mono">No headlines yet. Check back soon.</p>
+          )}
+          {items.map((item) => (
+            <a
               key={item.id}
-              className="p-4 rounded-lg bg-secondary/30 border border-border hover:border-accent/50 transition-colors cursor-pointer group"
+              href={item.url}
+              className="block p-4 rounded-lg bg-secondary/30 border border-border hover:border-accent/50 transition-colors cursor-pointer group"
+              target="_blank"
+              rel="noreferrer"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
@@ -84,13 +52,18 @@ export function NewsFeed() {
                   <span>•</span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    {item.time}
+                    {item.timeLabel}
                   </span>
-                  <span>•</span>
-                  <span className="text-accent">{item.category}</span>
+                  {item.tickers.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-accent">{item.tickers.join(", ")}</span>
+                    </>
+                  )}
                 </div>
+                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 text-pretty">{item.summary}</p>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </CardContent>
