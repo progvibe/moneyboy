@@ -12,8 +12,13 @@ export async function GET() {
     .select({ count: sql<number>`count(*)` })
     .from(documentChunks)
 
+  const [latest] = await db
+    .select({ maxPublished: sql<Date | null>`max("publishedAt")` })
+    .from(documents)
+
   return NextResponse.json({
     documents: docCount.count,
     chunks: chunkCount.count,
+    lastIngestedAt: latest?.maxPublished ?? null,
   })
 }
