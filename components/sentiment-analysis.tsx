@@ -68,14 +68,6 @@ export function SentimentAnalysis({ buckets }: SentimentAnalysisProps) {
             )
           })}
         </div>
-
-        <div className="mt-6 p-4 rounded-lg bg-primary/10 border border-primary/30">
-          <p className="text-xs text-muted-foreground font-mono mb-2">AI INSIGHT</p>
-          <p className="text-sm text-foreground leading-relaxed text-pretty">
-            Market sentiment remains strong with tech leading gains. Energy sector shows weakness due to geopolitical
-            concerns. Overall outlook suggests continued bullish momentum in Q1.
-          </p>
-        </div>
       </CardContent>
     </Card>
   )

@@ -18,6 +18,7 @@ export type NewsItem = {
   tickers: string[];
   sentiment: "positive" | "negative" | "neutral";
   summary: string;
+  score?: number;
 };
 
 export type WatchlistEntry = {

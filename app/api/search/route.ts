@@ -59,115 +59,193 @@ function buildTickerArray(tickers: string[]) {
   )}]::text[]`
 }
 
-export async function POST(req: Request) {
-  const body = await req.json()
-  const { query, tickers = [], dateRange = '30d' } = body ?? {}
-
-  if (!query || typeof query !== 'string') {
-    return NextResponse.json({ error: 'query is required' }, { status: 400 })
+async function summarizeResults({
+  query,
+  contexts,
+}: {
+  query: string
+  contexts: { title: string; snippet: string; sentiment: string; score: number }[]
+}): Promise<string> {
+  if (!OPENAI_API_KEY || contexts.length === 0) {
+    return `Found ${contexts.length} relevant articles for "${query}".`
   }
 
-  const from =
-    dateRange === '7d'
-      ? new Date(Date.now() - 7 * DAY_MS)
-      : dateRange === '90d'
-        ? new Date(Date.now() - 90 * DAY_MS)
-        : new Date(Date.now() - 30 * DAY_MS)
-
-  const tickerArray = tickers?.length
-    ? buildTickerArray(
-        tickers.map((t: string) => t.trim()).filter(Boolean).map((t) => t.toUpperCase()),
-      )
-    : null
-
-  const queryEmbedding = await embedQuery(query)
-
-  const chunks = await db
-    .select({
-      id: documentChunks.id,
-      text: documentChunks.text,
-      embedding: documentChunks.embedding,
-      sentiment: documentChunks.sentiment,
-      publishedAt: documentChunks.publishedAt,
-      documentId: documentChunks.documentId,
-    })
-    .from(documentChunks)
-    .where(
-      and(
-        gte(documentChunks.publishedAt, from),
-        tickers?.length
-          ? sql`${documentChunks.documentId} IN (
-              SELECT ${documents.id} FROM ${documents}
-              WHERE ${documents.tickers} && ${tickerArray}
-            )`
-          : sql`true`,
-      ),
+  const contextText = contexts
+    .map(
+      (c, idx) =>
+        `[${idx + 1}] (${c.sentiment}, score ${c.score.toFixed(2)}) ${c.title}\n${c.snippet}`,
     )
-    .orderBy(desc(documentChunks.publishedAt))
-    .limit(200)
+    .join('\n\n')
 
-  const scored = chunks
-    .map((c) => {
-      let emb: number[] | null = null
-      try {
-        emb = JSON.parse(c.embedding) as number[]
-      } catch {
-        emb = null
-      }
-      return {
-        ...c,
-        score: emb ? cosineSim(queryEmbedding, emb) : -1,
-      }
-    })
-    .filter((c) => c.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 30)
+  const prompt = `
+You are a financial research assistant. Based on the context, summarize key themes, sentiment, risks, and catalysts for the user's query.
+- Be concise (3-5 bullets). Hedge when uncertain. Mention tickers if relevant.
+- Do not invent facts beyond the provided snippets.
 
-  const docIds = Array.from(new Set(scored.map((c) => c.documentId)))
+User query: ${query}
 
-  if (docIds.length === 0) {
-    return NextResponse.json({
-      summary: `No results for "${query}" over the last ${dateRange}.`,
-      results: [],
-    })
+Context:
+${contextText}
+`
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a concise financial research assistant.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 180,
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    console.error('OpenAI summary error:', res.status, body)
+    return `Found ${contexts.length} relevant articles for "${query}".`
   }
 
-  const docs = await db
-    .select()
-    .from(documents)
-    .where(inArray(documents.id, docIds))
+  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  const content = json.choices?.[0]?.message?.content?.trim()
+  return content || `Found ${contexts.length} relevant articles for "${query}".`
+}
 
-  const docMap = new Map(docs.map((d) => [d.id, d]))
+export async function POST(req: Request) {
+  console.time('search')
+  try {
+    const body = await req.json()
+    const { query, tickers = [], dateRange = '30d' } = body ?? {}
 
-  const results = scored
-    .map((c) => {
-      const doc = docMap.get(c.documentId)
-      if (!doc) return null
+    if (!query || typeof query !== 'string') {
+      return NextResponse.json({ error: 'query is required' }, { status: 400 })
+    }
 
-      const sentiment =
-        c.sentiment != null
-          ? c.sentiment > 0.1
-            ? 'positive'
-            : c.sentiment < -0.1
-              ? 'negative'
-              : 'neutral'
-          : 'neutral'
+    const from =
+      dateRange === '7d'
+        ? new Date(Date.now() - 7 * DAY_MS)
+        : dateRange === '90d'
+          ? new Date(Date.now() - 90 * DAY_MS)
+          : new Date(Date.now() - 30 * DAY_MS)
 
-      return {
-        id: doc.id,
-        title: doc.title,
-        url: doc.url,
-        source: doc.source,
-        tickers: doc.tickers,
-        publishedAt: doc.publishedAt,
-        sentiment,
-        snippet: c.text.slice(0, 200) + (c.text.length > 200 ? '…' : ''),
-        score: c.score,
-      }
+    const tickerArray = tickers?.length
+      ? buildTickerArray(
+          tickers.map((t: string) => t.trim()).filter(Boolean).map((t) => t.toUpperCase()),
+        )
+      : null
+
+    const queryEmbedding = await embedQuery(query)
+
+    const chunks = await db
+      .select({
+        id: documentChunks.id,
+        text: documentChunks.text,
+        embedding: documentChunks.embedding,
+        sentiment: documentChunks.sentiment,
+        publishedAt: documentChunks.publishedAt,
+        documentId: documentChunks.documentId,
+      })
+      .from(documentChunks)
+      .where(
+        and(
+          gte(documentChunks.publishedAt, from),
+          tickers?.length
+            ? sql`${documentChunks.documentId} IN (
+                SELECT ${documents.id} FROM ${documents}
+                WHERE ${documents.tickers} && ${tickerArray}
+              )`
+            : sql`true`,
+        ),
+      )
+      .orderBy(desc(documentChunks.publishedAt))
+      .limit(200)
+
+    const scored = chunks
+      .map((c) => {
+        let emb: number[] | null = null
+        try {
+          emb = JSON.parse(c.embedding) as number[]
+        } catch {
+          emb = null
+        }
+        return {
+          ...c,
+          score: emb ? cosineSim(queryEmbedding, emb) : -1,
+        }
+      })
+      .filter((c) => c.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30)
+
+    const docIds = Array.from(new Set(scored.map((c) => c.documentId)))
+
+    if (docIds.length === 0) {
+      return NextResponse.json({
+        summary: `No results for "${query}" over the last ${dateRange}.`,
+        results: [],
+      })
+    }
+
+    const docs = await db
+      .select()
+      .from(documents)
+      .where(inArray(documents.id, docIds))
+
+    const docMap = new Map(docs.map((d) => [d.id, d]))
+
+    const results = scored
+      .map((c) => {
+        const doc = docMap.get(c.documentId)
+        if (!doc) return null
+
+        const sentiment =
+          c.sentiment != null
+            ? c.sentiment > 0.1
+              ? 'positive'
+              : c.sentiment < -0.1
+                ? 'negative'
+                : 'neutral'
+            : 'neutral'
+
+        return {
+          id: doc.id,
+          title: doc.title,
+          url: doc.url,
+          source: doc.source,
+          tickers: doc.tickers,
+          publishedAt: doc.publishedAt,
+          sentiment,
+          snippet: c.text.slice(0, 200) + (c.text.length > 200 ? '…' : ''),
+          score: c.score,
+        }
+      })
+      .filter(Boolean) as {
+      id: string
+      title: string
+      url: string
+      source: string
+      tickers: string[]
+      publishedAt: Date
+      sentiment: string
+      snippet: string
+      score: number
+    }[]
+
+    const summary = await summarizeResults({
+      query,
+      contexts: results.slice(0, 8),
     })
-    .filter(Boolean)
 
-  const summary = `Found ${results.length} relevant articles for "${query}" over the last ${dateRange}.`
-
-  return NextResponse.json({ summary, results })
+    return NextResponse.json({ summary, results })
+  } catch (err) {
+    console.error('Search error:', err)
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 })
+  } finally {
+    console.timeEnd('search')
+  }
 }
