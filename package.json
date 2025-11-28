@@ -12,7 +12,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed:dev": "tsx scripts/seed-dev.ts",
-    "ingest:finnhub": "tsx scripts/ingest-finnhub.ts"
+    "ingest:finnhub": "tsx scripts/ingest-finnhub.ts",
+    "embeddings:backfill": "tsx scripts/backfill-embeddings.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
