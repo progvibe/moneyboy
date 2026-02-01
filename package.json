@@ -13,6 +13,7 @@
     "db:studio": "drizzle-kit studio",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "ingest:finnhub": "tsx scripts/ingest-finnhub.ts",
+    "sp500:update": "tsx scripts/update-sp500.ts",
     "embeddings:backfill": "tsx scripts/backfill-embeddings.ts"
   },
   "dependencies": {

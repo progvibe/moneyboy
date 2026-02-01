@@ -39,35 +39,61 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
 async function main() {
   console.log('Backfilling embeddings...')
 
-  const chunks = await db
-    .select()
-    .from(documentChunks)
-    .where(
-      sql`embedding = ${JSON.stringify(Array(16).fill(0))} OR embedding IS NULL`,
+  const placeholder = JSON.stringify(Array(16).fill(0))
+  const batchSize = 128
+  let totalUpdated = 0
+
+  while (true) {
+    const [{ total }] = await db.execute(
+      sql<{ total: number }>`select count(*)::int as total from ${documentChunks}`,
     )
-    .limit(128)
 
-  if (chunks.length === 0) {
-    console.log('No chunks needing embeddings.')
-    return
+    const [{ remaining }] = await db.execute(
+      sql<{ remaining: number }>`
+        select count(*)::int as remaining
+        from ${documentChunks}
+        where embedding = ${placeholder} OR embedding IS NULL
+      `,
+    )
+
+    console.log(
+      `Chunks needing embeddings: ${remaining} of ${total} total chunks.`,
+    )
+
+    if (remaining === 0) {
+      break
+    }
+
+    const chunks = await db
+      .select()
+      .from(documentChunks)
+      .where(sql`embedding = ${placeholder} OR embedding IS NULL`)
+      .limit(batchSize)
+
+    if (chunks.length === 0) {
+      break
+    }
+
+    console.log(`Processing ${chunks.length} chunks this batch.`)
+
+    const texts = chunks.map((c) => c.text)
+    const vectors = await embedBatch(texts)
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const vector = vectors[i]
+
+      await db
+        .update(documentChunks)
+        .set({ embedding: JSON.stringify(vector) })
+        .where(eq(documentChunks.id, chunk.id))
+    }
+
+    totalUpdated += chunks.length
+    console.log('Updated embeddings for', chunks.length, 'chunks.')
   }
 
-  console.log(`Found ${chunks.length} chunks to embed.`)
-
-  const texts = chunks.map((c) => c.text)
-  const vectors = await embedBatch(texts)
-
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i]
-    const vector = vectors[i]
-
-    await db
-      .update(documentChunks)
-      .set({ embedding: JSON.stringify(vector) })
-      .where(eq(documentChunks.id, chunk.id))
-  }
-
-  console.log('Updated embeddings for', chunks.length, 'chunks.')
+  console.log('Backfill complete. Updated', totalUpdated, 'chunks.')
 }
 
 main()
