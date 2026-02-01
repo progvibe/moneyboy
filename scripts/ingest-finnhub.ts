@@ -3,7 +3,11 @@ import { ingestFinnhubNews } from "@/ingest/finnhub";
 
 async function main() {
   console.log("Starting Finnhub ingestion...");
-  await ingestFinnhubNews({ category: "general" });
+  await ingestFinnhubNews({
+    categories: ["general", "forex", "crypto", "merger"],
+    maxPages: 3,
+    minId: 0,
+  });
   console.log("Done.");
 }
 

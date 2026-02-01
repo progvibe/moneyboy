@@ -44,74 +44,113 @@ type FinnhubNewsItem = {
   url: string;
 };
 
-export async function ingestFinnhubNews(opts?: { category?: string }) {
-  const category = opts?.category ?? "general";
+type FinnhubIngestOptions = {
+  category?: string;
+  categories?: string[];
+  maxPages?: number;
+  minId?: number;
+};
 
+async function fetchFinnhubNewsPage(category: string, minId: number) {
   const url = `https://finnhub.io/api/v1/news?category=${encodeURIComponent(
     category,
-  )}&token=${FINNHUB_API_KEY}`;
+  )}&minId=${minId}&token=${FINNHUB_API_KEY}`;
 
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Finnhub request failed: ${res.status} ${res.statusText}`);
   }
 
-  const data = (await res.json()) as FinnhubNewsItem[];
+  return (await res.json()) as FinnhubNewsItem[];
+}
 
-  console.log(`Fetched ${data.length} news items from Finnhub (${category}).`);
+export async function ingestFinnhubNews(opts?: FinnhubIngestOptions) {
+  const categories =
+    opts?.categories && opts.categories.length > 0
+      ? opts.categories
+      : [opts?.category ?? "general"];
+  const maxPages = Math.max(1, opts?.maxPages ?? 1);
+  const defaultMinId = Math.max(0, opts?.minId ?? 0);
 
   let insertedCount = 0;
   let skippedCount = 0;
 
-  for (const item of data) {
-    const publishedAt = new Date(item.datetime * 1000);
-    const tickers =
-      item.related && item.related.trim().length > 0
-        ? item.related.split(",").map((s) => s.trim())
-        : [];
+  for (const category of categories) {
+    let minId = defaultMinId;
 
-    const body = item.summary || item.headline;
+    for (let page = 0; page < maxPages; page++) {
+      const data = await fetchFinnhubNewsPage(category, minId);
 
-    const existing = await db
-      .select()
-      .from(documents)
-      .where(eq(documents.url, item.url))
-      .limit(1);
+      console.log(
+        `Fetched ${data.length} news items from Finnhub (${category}) page ${
+          page + 1
+        }/${maxPages} (minId=${minId}).`,
+      );
 
-    if (existing.length > 0) {
-      skippedCount++;
-      continue;
+      if (data.length === 0) {
+        break;
+      }
+
+      let pageMaxId = minId;
+
+      for (const item of data) {
+        pageMaxId = Math.max(pageMaxId, item.id);
+        const publishedAt = new Date(item.datetime * 1000);
+        const tickers =
+          item.related && item.related.trim().length > 0
+            ? item.related.split(",").map((s) => s.trim())
+            : [];
+
+        const body = item.summary || item.headline;
+
+        const existing = await db
+          .select()
+          .from(documents)
+          .where(eq(documents.url, item.url))
+          .limit(1);
+
+        if (existing.length > 0) {
+          skippedCount++;
+          continue;
+        }
+
+        const [doc] = await db
+          .insert(documents)
+          .values({
+            source: item.source ?? "finnhub",
+            title: item.headline,
+            body,
+            url: item.url,
+            tickers,
+            publishedAt,
+          })
+          .returning();
+
+        const chunks = chunkText(body);
+
+        const sentiment = guessSentiment(item.headline);
+
+        for (let i = 0; i < chunks.length; i++) {
+          await db.insert(documentChunks).values({
+            documentId: doc.id,
+            chunkIndex: i,
+            text: chunks[i],
+            embedding: JSON.stringify(Array(16).fill(0)),
+            sentiment,
+            topicClusterId: null,
+            publishedAt,
+          });
+        }
+
+        insertedCount++;
+      }
+
+      if (pageMaxId <= minId) {
+        break;
+      }
+
+      minId = pageMaxId;
     }
-
-    const [doc] = await db
-      .insert(documents)
-      .values({
-        source: item.source ?? "finnhub",
-        title: item.headline,
-        body,
-        url: item.url,
-        tickers,
-        publishedAt,
-      })
-      .returning();
-
-    const chunks = chunkText(body);
-
-    const sentiment = guessSentiment(item.headline);
-
-    for (let i = 0; i < chunks.length; i++) {
-      await db.insert(documentChunks).values({
-        documentId: doc.id,
-        chunkIndex: i,
-        text: chunks[i],
-        embedding: JSON.stringify(Array(16).fill(0)),
-        sentiment,
-        topicClusterId: null,
-        publishedAt,
-      });
-    }
-
-    insertedCount++;
   }
 
   console.log(
