@@ -6,6 +6,8 @@ import {
   real,
   text,
   timestamp,
+  boolean,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 
@@ -24,6 +26,30 @@ export const documents = pgTable('documents', {
     .notNull()
     .defaultNow(),
 })
+
+export const tickers = pgTable(
+  'tickers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    symbol: text('symbol').notNull(),
+    exchange: text('exchange').notNull(),
+    name: text('name'),
+    active: boolean('active').notNull().default(true),
+    lastSyncedAt: timestamp('lastSyncedAt', { withTimezone: true }),
+    createdAt: timestamp('createdAt', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    symbolExchangeIdx: uniqueIndex('tickers_symbol_exchange_idx').on(
+      table.symbol,
+      table.exchange,
+    ),
+    lastSyncedIdx: index('tickers_last_synced_idx').on(
+      table.lastSyncedAt,
+    ),
+  }),
+)
 
 export const documentChunks = pgTable(
   'document_chunks',
