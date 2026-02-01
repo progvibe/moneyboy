@@ -1,6 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Star } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { TickerQuickLook } from "@/components/ticker-quick-look"
 import type { WatchlistEntry } from "@/lib/queries/dashboard"
 
 type StockWatchlistProps = {
@@ -31,7 +32,7 @@ export function StockWatchlist({ entries }: StockWatchlistProps) {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <p className="font-mono font-bold text-foreground">{stock.ticker}</p>
+                      <TickerQuickLook ticker={stock.ticker} />
                       {isPositive ? (
                         <TrendingUp className="w-3 h-3 text-(--color-success)" />
                       ) : (

@@ -1,6 +1,7 @@
+import { Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock } from "lucide-react"
+import { TickerQuickLook } from "@/components/ticker-quick-look"
 import type { NewsItem } from "@/lib/queries/dashboard"
 
 type NewsFeedProps = {
@@ -22,18 +23,20 @@ export function NewsFeed({ items }: NewsFeedProps) {
             <p className="text-sm text-muted-foreground font-mono">No headlines yet. Check back soon.</p>
           )}
           {items.map((item) => (
-            <a
+            <div
               key={item.id}
-              href={item.url}
-              className="block p-4 rounded-lg bg-secondary/30 border border-border hover:border-accent/50 transition-colors cursor-pointer group"
-              target="_blank"
-              rel="noreferrer"
+              className="block p-4 rounded-lg bg-secondary/30 border border-border hover:border-accent/50 transition-colors group"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-foreground font-medium leading-snug group-hover:text-accent transition-colors text-pretty">
+                  <a
+                    href={item.url}
+                    className="text-foreground font-medium leading-snug group-hover:text-accent transition-colors text-pretty"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {item.title}
-                  </h3>
+                  </a>
                   <Badge
                     variant="outline"
                     className={`shrink-0 font-mono text-xs ${
@@ -57,13 +60,17 @@ export function NewsFeed({ items }: NewsFeedProps) {
                   {item.tickers.length > 0 && (
                     <>
                       <span>•</span>
-                      <span className="text-accent">{item.tickers.join(", ")}</span>
+                      <span className="flex flex-wrap items-center gap-1">
+                        {item.tickers.map((ticker) => (
+                          <TickerQuickLook key={ticker} ticker={ticker} />
+                        ))}
+                      </span>
                     </>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 text-pretty">{item.summary}</p>
               </div>
-            </a>
+            </div>
           ))}
         </div>
       </CardContent>
