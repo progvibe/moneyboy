@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { db } from "@/db/client";
-import { documentChunks, documents } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { documentChunks, documents, tickers } from "@/db/schema";
+import { eq, inArray, sql } from "drizzle-orm";
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+const FINNHUB_MAX_REQUESTS_PER_MINUTE = 55;
 
 if (!FINNHUB_API_KEY) {
   throw new Error("FINNHUB_API_KEY is not set");
@@ -165,12 +166,68 @@ function toDateRange(opts?: { from?: string; to?: string; lookbackDays?: number 
   return { from: formatDate(fromDate), to };
 }
 
+const requestTimestamps: number[] = [];
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function rateLimit() {
+  const limit = Number.isFinite(FINNHUB_MAX_REQUESTS_PER_MINUTE)
+    ? FINNHUB_MAX_REQUESTS_PER_MINUTE
+    : 55;
+  if (limit <= 0) return;
+
+  const windowMs = 60_000;
+  const now = Date.now();
+  while (requestTimestamps.length > 0 && now - requestTimestamps[0] >= windowMs) {
+    requestTimestamps.shift();
+  }
+
+  if (requestTimestamps.length < limit) {
+    requestTimestamps.push(now);
+    return;
+  }
+
+  const waitFor = windowMs - (now - requestTimestamps[0]);
+  await sleep(waitFor);
+  return rateLimit();
+}
+
+async function fetchWithRetry(url: string, options?: RequestInit) {
+  const maxRetries = 5;
+  let attempt = 0;
+  let delayMs = 800;
+
+  while (true) {
+    await rateLimit();
+    const res = await fetch(url, options);
+
+    if (res.ok) return res;
+
+    if (res.status === 429 || res.status >= 500) {
+      attempt += 1;
+      if (attempt > maxRetries) {
+        return res;
+      }
+      const retryAfter = res.headers.get("retry-after");
+      const retryAfterMs = retryAfter ? Number(retryAfter) * 1000 : 0;
+      const backoff = Math.max(delayMs, retryAfterMs);
+      await sleep(backoff);
+      delayMs = Math.min(delayMs * 2, 15_000);
+      continue;
+    }
+
+    return res;
+  }
+}
+
 async function fetchFinnhubNewsPage(category: string, minId: number) {
   const url = `https://finnhub.io/api/v1/news?category=${encodeURIComponent(
     category,
   )}&minId=${minId}&token=${FINNHUB_API_KEY}`;
 
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) {
     throw new Error(`Finnhub request failed: ${res.status} ${res.statusText}`);
   }
@@ -186,7 +243,7 @@ async function fetchFinnhubCompanyNews(
     ticker,
   )}&from=${range.from}&to=${range.to}&token=${FINNHUB_API_KEY}`;
 
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) {
     throw new Error(`Finnhub request failed: ${res.status} ${res.statusText}`);
   }
@@ -194,21 +251,17 @@ async function fetchFinnhubCompanyNews(
   return (await res.json()) as FinnhubCompanyNewsItem[];
 }
 
-async function fetchFinnhubSymbols(exchange: string) {
+export async function fetchFinnhubSymbols(exchange: string) {
   const url = `https://finnhub.io/api/v1/stock/symbol?exchange=${encodeURIComponent(
     exchange,
   )}&token=${FINNHUB_API_KEY}`;
 
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) {
     throw new Error(`Finnhub request failed: ${res.status} ${res.statusText}`);
   }
 
   return (await res.json()) as FinnhubSymbol[];
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function ingestFinnhubNews(opts?: FinnhubIngestOptions) {
@@ -316,4 +369,29 @@ export async function ingestFinnhubCompanyNews(
   console.log(
     `Company-news ingestion complete. Inserted ${insertedCount}, skipped ${skippedCount} (dedup by URL).`,
   );
+}
+
+export async function getTickerBatch(limit: number) {
+  const safeLimit = Math.max(1, limit);
+  return db
+    .select({ symbol: tickers.symbol })
+    .from(tickers)
+    .where(eq(tickers.active, true))
+    .orderBy(
+      sql`${tickers.lastSyncedAt} IS NULL DESC`,
+      tickers.lastSyncedAt,
+      tickers.symbol,
+    )
+    .limit(safeLimit);
+}
+
+export async function markTickersSynced(
+  symbols: string[],
+  syncedAt = new Date(),
+) {
+  if (symbols.length === 0) return;
+  await db
+    .update(tickers)
+    .set({ lastSyncedAt: syncedAt })
+    .where(inArray(tickers.symbol, symbols));
 }
