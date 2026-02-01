@@ -19,6 +19,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { TickerQuickLook } from '@/components/ticker-quick-look'
 
 type SearchResult = {
   id: string
@@ -214,10 +215,8 @@ export default function SearchPage() {
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{result.source}</Badge>
                     <div className="flex gap-1 flex-wrap">
-                      {result.tickers?.map((t) => (
-                        <Badge key={t} variant="outline">
-                          {t}
-                        </Badge>
+                      {result.tickers?.map((ticker) => (
+                        <TickerQuickLook key={ticker} ticker={ticker} />
                       ))}
                     </div>
                   </div>
