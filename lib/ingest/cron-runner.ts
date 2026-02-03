@@ -27,6 +27,10 @@ const STALE_RUN_MINUTES = 15
 const STALE_RUN_MS = STALE_RUN_MINUTES * 60 * 1000
 const STALE_RUN_MESSAGE = `Run timed out after ${STALE_RUN_MINUTES} minutes without updates.`
 
+function logRun(runId: string, payload: Record<string, unknown>) {
+  console.log('[cron-ingest]', runId, JSON.stringify(payload))
+}
+
 function isStaleRun(updatedAt?: Date | string | null) {
   if (!updatedAt) return false
   const updated =
@@ -173,6 +177,8 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
   const startedAt = new Date()
 
   try {
+    logRun(runId, { event: 'start', startedAt: startedAt.toISOString() })
+
     await updateProgress(runId, {
       stage: 'news',
       progress: 15,
@@ -194,6 +200,7 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
     // Keep the batch size modest so we can reach embeddings faster.
     const tickerRows = await getTickerBatch(MAX_TICKERS_PER_RUN)
     const tickers = tickerRows.map((row: { symbol: string }) => row.symbol)
+    logRun(runId, { event: 'tickers-selected', count: tickers.length })
 
     if (tickers.length === 0) {
       await updateProgress(runId, {
@@ -242,6 +249,12 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
       maxPerTicker: COMPANY_NEWS_MAX_PER_TICKER,
       minDelayMs: COMPANY_NEWS_DELAY_MS,
     })
+    logRun(runId, {
+      event: 'company-news',
+      processed: companyResult.processedTickers,
+      inserted: companyResult.inserted,
+      skipped: companyResult.skipped,
+    })
 
     await markTickersSynced(tickers, new Date())
 
@@ -256,6 +269,11 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
       maxBatches: 4,
       sinceHours: 48,
     })
+    logRun(runId, {
+      event: 'embeddings',
+      updated: embeddingResult.updated,
+      total: embeddingResult.total,
+    })
 
     await updateProgress(runId, {
       stage: 'themes',
@@ -267,6 +285,11 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
       windowHours: 24,
       themeCount: 6,
       force: true,
+    })
+    logRun(runId, {
+      event: 'themes',
+      generatedAt: themesResult.generatedAt,
+      themes: themesResult.themes?.length,
     })
 
     const completedAt = new Date()
@@ -319,6 +342,7 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
     const completedAt = new Date()
     const message =
       err instanceof Error ? err.message : 'Cron ingest failed'
+    logRun(runId, { event: 'error', message })
 
     await updateProgress(runId, {
       status: 'error',
