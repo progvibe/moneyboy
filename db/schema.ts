@@ -51,6 +51,22 @@ export const tickers = pgTable(
   }),
 )
 
+export const ingestionRuns = pgTable(
+  'ingestion_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runType: text('runType').notNull(),
+    status: text('status').notNull(),
+    startedAt: timestamp('startedAt', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completedAt', { withTimezone: true }),
+    error: text('error'),
+    metadata: text('metadata'),
+  },
+  (table) => ({
+    startedAtIdx: index('ingestion_runs_started_at_idx').on(table.startedAt),
+  }),
+)
+
 export const documentChunks = pgTable(
   'document_chunks',
   {

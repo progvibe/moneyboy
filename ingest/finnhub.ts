@@ -312,6 +312,8 @@ export async function ingestFinnhubNews(opts?: FinnhubIngestOptions) {
   console.log(
     `Ingestion complete. Inserted ${insertedCount}, skipped ${skippedCount} (dedup by URL).`,
   );
+
+  return { inserted: insertedCount, skipped: skippedCount };
 }
 
 export async function ingestFinnhubCompanyNews(
@@ -347,6 +349,7 @@ export async function ingestFinnhubCompanyNews(
 
   let insertedCount = 0;
   let skippedCount = 0;
+  let processedTickers = 0;
 
   for (const ticker of tickers) {
     const items = await fetchFinnhubCompanyNews(ticker, range);
@@ -360,6 +363,7 @@ export async function ingestFinnhubCompanyNews(
     const counts = await insertNewsItems(limited, ticker);
     insertedCount += counts.inserted;
     skippedCount += counts.skipped;
+    processedTickers += 1;
 
     if (minDelayMs > 0) {
       await sleep(minDelayMs);
@@ -369,6 +373,12 @@ export async function ingestFinnhubCompanyNews(
   console.log(
     `Company-news ingestion complete. Inserted ${insertedCount}, skipped ${skippedCount} (dedup by URL).`,
   );
+
+  return {
+    inserted: insertedCount,
+    skipped: skippedCount,
+    processedTickers,
+  };
 }
 
 export async function getTickerBatch(limit: number) {
