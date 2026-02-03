@@ -20,6 +20,20 @@ type RunResult = {
   completedAt?: string | null
 }
 
+const MAX_TICKERS_PER_RUN = 200
+const COMPANY_NEWS_MAX_PER_TICKER = 20
+const COMPANY_NEWS_DELAY_MS = 250
+const STALE_RUN_MINUTES = 15
+const STALE_RUN_MS = STALE_RUN_MINUTES * 60 * 1000
+const STALE_RUN_MESSAGE = `Run timed out after ${STALE_RUN_MINUTES} minutes without updates.`
+
+function isStaleRun(updatedAt?: Date | string | null) {
+  if (!updatedAt) return false
+  const updated =
+    updatedAt instanceof Date ? updatedAt.getTime() : new Date(updatedAt).getTime()
+  return Date.now() - updated > STALE_RUN_MS
+}
+
 async function updateProgress(
   runId: string,
   updates: Partial<{
@@ -52,6 +66,31 @@ async function updateProgress(
     .where(eq(ingestionRunProgress.runId, runId))
 }
 
+async function markRunTimedOut(runId: string) {
+  const completedAt = new Date()
+
+  await db
+    .update(ingestionRunProgress)
+    .set({
+      status: 'error',
+      stage: 'timeout',
+      progress: 100,
+      message: STALE_RUN_MESSAGE,
+      completedAt,
+      updatedAt: completedAt,
+    })
+    .where(eq(ingestionRunProgress.runId, runId))
+
+  await db
+    .update(ingestionRuns)
+    .set({
+      status: 'error',
+      completedAt,
+      error: STALE_RUN_MESSAGE,
+    })
+    .where(eq(ingestionRuns.id, runId))
+}
+
 export async function getLatestRunProgress(runId?: string | null) {
   if (runId) {
     const rows = await db
@@ -59,7 +98,19 @@ export async function getLatestRunProgress(runId?: string | null) {
       .from(ingestionRunProgress)
       .where(eq(ingestionRunProgress.runId, runId))
       .limit(1)
-    return rows[0] ?? null
+    const row = rows[0]
+    if (row && row.status === 'running' && isStaleRun(row.updatedAt)) {
+      await markRunTimedOut(row.runId)
+      return {
+        ...row,
+        status: 'error',
+        stage: 'timeout',
+        progress: row.progress ?? 100,
+        message: STALE_RUN_MESSAGE,
+        completedAt: new Date(),
+      }
+    }
+    return row ?? null
   }
 
   const rows = await db
@@ -67,7 +118,19 @@ export async function getLatestRunProgress(runId?: string | null) {
     .from(ingestionRunProgress)
     .orderBy(desc(ingestionRunProgress.startedAt))
     .limit(1)
-  return rows[0] ?? null
+  const row = rows[0]
+  if (row && row.status === 'running' && isStaleRun(row.updatedAt)) {
+    await markRunTimedOut(row.runId)
+    return {
+      ...row,
+      status: 'error',
+      stage: 'timeout',
+      progress: row.progress ?? 100,
+      message: STALE_RUN_MESSAGE,
+      completedAt: new Date(),
+    }
+  }
+  return row ?? null
 }
 
 export async function startIngestionRun(runType: 'cron' | 'manual' = 'cron') {
@@ -79,7 +142,12 @@ export async function startIngestionRun(runType: 'cron' | 'manual' = 'cron') {
     .limit(1)
 
   if (existing.length) {
-    return { runId: existing[0].runId, reused: true }
+    const current = existing[0]
+    if (isStaleRun(current.updatedAt)) {
+      await markRunTimedOut(current.runId)
+    } else {
+      return { runId: current.runId, reused: true }
+    }
   }
 
   const startedAt = new Date()
@@ -123,8 +191,9 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
       message: 'Selecting tickers to sync.',
     })
 
-    const tickerRows = await getTickerBatch(500)
-    const tickers = tickerRows.map((row) => row.symbol)
+    // Keep the batch size modest so we can reach embeddings faster.
+    const tickerRows = await getTickerBatch(MAX_TICKERS_PER_RUN)
+    const tickers = tickerRows.map((row: { symbol: string }) => row.symbol)
 
     if (tickers.length === 0) {
       await updateProgress(runId, {
@@ -170,8 +239,8 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
     const companyResult = await ingestFinnhubCompanyNews({
       tickers,
       lookbackDays: 7,
-      maxPerTicker: 30,
-      minDelayMs: 1000,
+      maxPerTicker: COMPANY_NEWS_MAX_PER_TICKER,
+      minDelayMs: COMPANY_NEWS_DELAY_MS,
     })
 
     await markTickersSynced(tickers, new Date())
