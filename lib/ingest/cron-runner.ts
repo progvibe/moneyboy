@@ -31,6 +31,13 @@ async function updateProgress(
     metadata: Record<string, unknown>
   }>,
 ) {
+  const metadata =
+    updates.metadata !== undefined
+      ? JSON.stringify(updates.metadata, (_key, value) =>
+          value instanceof Date ? value.toISOString() : value,
+        )
+      : undefined
+
   await db
     .update(ingestionRunProgress)
     .set({
@@ -39,7 +46,7 @@ async function updateProgress(
       progress: updates.progress,
       message: updates.message,
       completedAt: updates.completedAt ?? undefined,
-      metadata: updates.metadata ? JSON.stringify(updates.metadata) : undefined,
+      metadata,
       updatedAt: new Date(),
     })
     .where(eq(ingestionRunProgress.runId, runId))
@@ -129,14 +136,19 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
         metadata: { newsResult, tickers: 0 },
       })
 
-      await db
-        .update(ingestionRuns)
-        .set({
-          status: 'success',
-          completedAt: new Date(),
-          metadata: JSON.stringify({ newsResult, tickers: 0 }),
-        })
-        .where(eq(ingestionRuns.id, runId))
+    const metadata = JSON.stringify(
+      { newsResult, tickers: 0 },
+      (_key, value) => (value instanceof Date ? value.toISOString() : value),
+    )
+
+    await db
+      .update(ingestionRuns)
+      .set({
+        status: 'success',
+        completedAt: new Date(),
+        metadata,
+      })
+      .where(eq(ingestionRuns.id, runId))
 
       return {
         runId,
@@ -205,18 +217,23 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
       },
     })
 
+    const metadata = JSON.stringify(
+      {
+        newsResult,
+        companyResult,
+        tickers: tickers.length,
+        embeddingsUpdated: embeddingResult.updated,
+        themesGeneratedAt: themesResult.generatedAt,
+      },
+      (_key, value) => (value instanceof Date ? value.toISOString() : value),
+    )
+
     await db
       .update(ingestionRuns)
       .set({
         status: 'success',
         completedAt,
-        metadata: JSON.stringify({
-          newsResult,
-          companyResult,
-          tickers: tickers.length,
-          embeddingsUpdated: embeddingResult.updated,
-          themesGeneratedAt: themesResult.generatedAt,
-        }),
+        metadata,
       })
       .where(eq(ingestionRuns.id, runId))
 

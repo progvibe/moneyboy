@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed:dev": "tsx scripts/seed-dev.ts",
+    "seed:important-tickers": "tsx scripts/seed-important-tickers.ts",
     "ingest:finnhub": "tsx scripts/ingest-finnhub.ts",
     "tickers:sync": "tsx scripts/sync-tickers.ts",
     "embeddings:backfill": "tsx scripts/backfill-embeddings.ts",

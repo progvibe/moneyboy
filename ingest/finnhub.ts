@@ -1,11 +1,10 @@
 import "dotenv/config";
 import { db } from "@/db/client";
-import { documentChunks, documents, tickers } from "@/db/schema";
+import { documentChunks, documents, importantTickers, tickers } from "@/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const FINNHUB_MAX_REQUESTS_PER_MINUTE = 55;
-
 if (!FINNHUB_API_KEY) {
   throw new Error("FINNHUB_API_KEY is not set");
 }
@@ -383,16 +382,31 @@ export async function ingestFinnhubCompanyNews(
 
 export async function getTickerBatch(limit: number) {
   const safeLimit = Math.max(1, limit);
-  return db
-    .select({ symbol: tickers.symbol })
-    .from(tickers)
-    .where(eq(tickers.active, true))
-    .orderBy(
-      sql`${tickers.lastSyncedAt} IS NULL DESC`,
-      tickers.lastSyncedAt,
-      tickers.symbol,
-    )
-    .limit(safeLimit);
+  const result = await db.execute<{ symbol: string }>(sql`
+    select t.symbol
+    from ${tickers} t
+    left join ${importantTickers} it
+      on it.symbol = t.symbol
+    left join lateral (
+      select
+        count(*)::int as mentions,
+        max(d."publishedAt") as latest
+      from ${documents} d
+      where d."publishedAt" > now() - interval '7 days'
+        and d.tickers @> ARRAY[t.symbol]::text[]
+    ) m on true
+    where t.active = true
+    order by
+      (it.symbol is not null) desc,
+      it.rank asc nulls last,
+      m.mentions desc nulls last,
+      t."lastSyncedAt" is null desc,
+      t."lastSyncedAt" asc,
+      t.symbol asc
+    limit ${safeLimit}
+  `);
+
+  return Array.isArray(result) ? result : result.rows ?? [];
 }
 
 export async function markTickersSynced(
