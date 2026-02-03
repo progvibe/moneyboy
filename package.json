@@ -14,7 +14,8 @@
     "seed:dev": "tsx scripts/seed-dev.ts",
     "ingest:finnhub": "tsx scripts/ingest-finnhub.ts",
     "tickers:sync": "tsx scripts/sync-tickers.ts",
-    "embeddings:backfill": "tsx scripts/backfill-embeddings.ts"
+    "embeddings:backfill": "tsx scripts/backfill-embeddings.ts",
+    "themes:generate": "tsx scripts/generate-dashboard-themes.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

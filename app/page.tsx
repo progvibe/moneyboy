@@ -5,6 +5,7 @@ import { EconomicIndicators } from "@/components/economic-indicators";
 import { SentimentAnalysis } from "@/components/sentiment-analysis";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { NewsSummary } from "@/components/news-summary";
+import { TopThemesCard } from "@/components/top-themes-card";
 import {
   getIndicatorSnapshots,
   getLatestNews,
@@ -12,15 +13,17 @@ import {
   getSentimentBuckets,
   getWatchlistSnapshots,
 } from "@/lib/queries/dashboard";
+import { getDashboardThemes } from "@/lib/queries/dashboard-themes";
 import { generateNewsSummary } from "@/lib/summary";
 
 export default async function Home() {
-  const [markets, news, watchlist, indicators, sentiments] = await Promise.all([
+  const [markets, news, watchlist, indicators, sentiments, themes] = await Promise.all([
     getMarketOverview(),
     getLatestNews(5),
     getWatchlistSnapshots(),
     getIndicatorSnapshots(),
     getSentimentBuckets(),
+    getDashboardThemes(),
   ]);
 
   const newsSummary = await generateNewsSummary(news);
@@ -32,6 +35,13 @@ export default async function Home() {
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Market Overview */}
         <MarketOverview markets={markets} />
+
+        <TopThemesCard
+          generatedAt={themes.generatedAt}
+          windowHours={themes.windowHours}
+          themes={themes.themes}
+          dailySummary={themes.dailySummary}
+        />
 
         {/* Main Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
+import { useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -40,7 +41,9 @@ const DATE_RANGES = [
 ]
 
 export default function SearchPage() {
-  const [query, setQuery] = useState('')
+  const searchParams = useSearchParams()
+  const initialQuery = searchParams.get('query') ?? ''
+  const [query, setQuery] = useState(initialQuery)
   const [tickersInput, setTickersInput] = useState('')
   const [dateRange, setDateRange] = useState('30d')
   const [sentiment, setSentiment] = useState('any')
@@ -48,6 +51,13 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const preset = searchParams.get('query')
+    if (preset !== null) {
+      setQuery(preset)
+    }
+  }, [searchParams])
 
   const displayed = useMemo(() => {
     if (sentiment === 'any') return results
