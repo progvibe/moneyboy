@@ -67,6 +67,28 @@ export const ingestionRuns = pgTable(
   }),
 )
 
+export const ingestionRunProgress = pgTable(
+  'ingestion_run_progress',
+  {
+    runId: uuid('runId')
+      .primaryKey()
+      .references(() => ingestionRuns.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    stage: text('stage').notNull(),
+    progress: integer('progress').notNull().default(0),
+    message: text('message'),
+    startedAt: timestamp('startedAt', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updatedAt', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp('completedAt', { withTimezone: true }),
+    metadata: text('metadata'),
+  },
+  (table) => ({
+    statusIdx: index('ingestion_run_progress_status_idx').on(table.status),
+  }),
+)
+
 export const documentChunks = pgTable(
   'document_chunks',
   {
@@ -86,6 +108,27 @@ export const documentChunks = pgTable(
     chunkOrderIdx: index('document_chunks_order_idx').on(
       table.documentId,
       table.chunkIndex,
+    ),
+  }),
+)
+
+export const dashboardThemeCache = pgTable(
+  'dashboard_theme_cache',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    cacheDate: timestamp('cacheDate', { withTimezone: true }).notNull(),
+    windowHours: integer('windowHours').notNull(),
+    themeCount: integer('themeCount').notNull(),
+    payload: text('payload').notNull(),
+    generatedAt: timestamp('generatedAt', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    cacheKeyIdx: uniqueIndex('dashboard_theme_cache_key_idx').on(
+      table.cacheDate,
+      table.windowHours,
+      table.themeCount,
     ),
   }),
 )
