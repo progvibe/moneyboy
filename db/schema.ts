@@ -51,6 +51,20 @@ export const tickers = pgTable(
   }),
 )
 
+export const importantTickers = pgTable(
+  'important_tickers',
+  {
+    symbol: text('symbol').primaryKey(),
+    rank: integer('rank').notNull().default(100),
+    createdAt: timestamp('createdAt', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    rankIdx: index('important_tickers_rank_idx').on(table.rank),
+  }),
+)
+
 export const ingestionRuns = pgTable(
   'ingestion_runs',
   {

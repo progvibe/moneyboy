@@ -48,6 +48,7 @@ export async function backfillEmbeddings({
   sinceHours = 48,
 }: BackfillOptions = {}) {
   const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000)
+  const sinceIso = since.toISOString()
   let updated = 0
 
   for (let batch = 0; batch < maxBatches; batch++) {
@@ -55,7 +56,7 @@ export async function backfillEmbeddings({
       .select()
       .from(documentChunks)
       .where(
-        sql`${documentChunks.publishedAt} >= ${since} AND (${documentChunks.embedding} = ${PLACEHOLDER_EMBEDDING} OR ${documentChunks.embedding} IS NULL)`,
+        sql`${documentChunks.publishedAt} >= ${sinceIso} AND (${documentChunks.embedding} = ${PLACEHOLDER_EMBEDDING} OR ${documentChunks.embedding} IS NULL)`,
       )
       .limit(batchSize)
 
