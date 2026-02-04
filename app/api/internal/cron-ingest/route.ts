@@ -49,9 +49,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, runId, reused, payload });
 
   } catch (err) {
-    console.error("Cron status failed:", err);
+    console.error("Cron ingest failed:", err);
     return NextResponse.json(
-      { ok: false, error: "Cron status failed" },
+      { ok: false, error: "Cron ingest failed" },
       { status: 500 },
     );
   }

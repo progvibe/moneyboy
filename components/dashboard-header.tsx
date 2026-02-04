@@ -24,7 +24,7 @@ export function DashboardHeader() {
 
   async function fetchStatus() {
     try {
-      const res = await fetch("/api/internal/cron-ingest", {
+      const res = await fetch("/api/internal/cron-status", {
         cache: "no-store",
       })
       const data = await res.json()
