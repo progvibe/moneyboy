@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { documentChunks, documents } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 export type MarketMetric = {
   name: string;
@@ -26,6 +26,7 @@ export type WatchlistEntry = {
   mentions: number;
   latest: Date | null;
   sentiment: number | null;
+  sentimentLabel: "Bullish" | "Bearish" | "Neutral";
 };
 
 export type IndicatorSnapshot = {
@@ -37,8 +38,9 @@ export type IndicatorSnapshot = {
 
 export type SentimentBucket = {
   category: string;
-  score: number;
   label: string;
+  strength: number;
+  mentions?: number;
   color: "success" | "destructive" | "info";
 };
 
@@ -170,24 +172,89 @@ export async function getMarketOverview(): Promise<MarketMetric[]> {
 }
 
 export async function getLatestNews(limit = 3): Promise<NewsItem[]> {
-  const rows = await db
-    .select({
-      id: documents.id,
-      title: documents.title,
-      source: documents.source,
-      url: documents.url,
-      publishedAt: documents.publishedAt,
-      tickers: documents.tickers,
-      summary: sql<string>`left(${documents.body}, 220)`,
-      sentiment: sql<number | null>`avg(${documentChunks.sentiment})`,
-    })
-    .from(documents)
-    .leftJoin(documentChunks, eq(documentChunks.documentId, documents.id))
-    .groupBy(documents.id)
-    .orderBy(desc(documents.publishedAt))
-    .limit(limit);
+  const priorityResult = await db.execute<{
+    id: string;
+    title: string;
+    source: string;
+    url: string;
+    publishedAt: Date;
+    tickers: string[];
+    summary: string;
+    sentiment: number | null;
+    priorityRank: number | null;
+  }>(sql`
+    select
+      d.id,
+      d.title,
+      d.source,
+      d.url,
+      d."publishedAt",
+      d.tickers,
+      left(d.body, 220) as summary,
+      avg(dc.sentiment)::float as sentiment,
+      pr.rank as "priorityRank"
+    from documents d
+    left join document_chunks dc on dc."documentId" = d.id
+    join lateral (
+      select min(it.rank) as rank
+      from unnest(d.tickers) as t(symbol)
+      join important_tickers it on upper(it.symbol) = upper(trim(t.symbol))
+    ) pr on true
+    group by d.id, pr.rank
+    order by pr.rank asc, d."publishedAt" desc
+    limit ${limit}
+  `);
 
-  return rows.map((row) => ({
+  const priorityRows = getExecuteRows(priorityResult);
+  const remaining = Math.max(limit - priorityRows.length, 0);
+
+  if (remaining === 0) {
+    return priorityRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      source: row.source,
+      url: row.url,
+      timeLabel: formatRelativeTime(new Date(row.publishedAt)),
+      tickers: row.tickers ?? [],
+      sentiment: getSentimentLabel(row.sentiment),
+      summary: row.summary,
+    }));
+  }
+
+  const fallbackResult = await db.execute<{
+    id: string;
+    title: string;
+    source: string;
+    url: string;
+    publishedAt: Date;
+    tickers: string[];
+    summary: string;
+    sentiment: number | null;
+  }>(sql`
+    select
+      d.id,
+      d.title,
+      d.source,
+      d.url,
+      d."publishedAt",
+      d.tickers,
+      left(d.body, 220) as summary,
+      avg(dc.sentiment)::float as sentiment
+    from documents d
+    left join document_chunks dc on dc."documentId" = d.id
+    where not exists (
+      select 1
+      from unnest(d.tickers) as t(symbol)
+      join important_tickers it on upper(it.symbol) = upper(trim(t.symbol))
+    )
+    group by d.id
+    order by d."publishedAt" desc
+    limit ${remaining}
+  `);
+
+  const fallbackRows = getExecuteRows(fallbackResult);
+
+  return [...priorityRows, ...fallbackRows].map((row) => ({
     id: row.id,
     title: row.title,
     source: row.source,
@@ -200,7 +267,7 @@ export async function getLatestNews(limit = 3): Promise<NewsItem[]> {
 }
 
 export async function getWatchlistSnapshots(
-  limit = 6,
+  limit = 10,
 ): Promise<WatchlistEntry[]> {
   const result = await db.execute<{
     ticker: string;
@@ -216,8 +283,9 @@ export async function getWatchlistSnapshots(
     from documents d
     left join document_chunks dc on dc."documentId" = d.id
     cross join lateral unnest(d.tickers) as t(ticker)
+    where d."publishedAt" >= now() - interval '3 days'
     group by t.ticker
-    order by max(d."publishedAt") desc nulls last
+    order by count(*) desc, max(d."publishedAt") desc nulls last
     limit ${limit}
   `);
 
@@ -228,6 +296,7 @@ export async function getWatchlistSnapshots(
     mentions: row.mentions,
     latest: row.latest ? new Date(row.latest) : null,
     sentiment: row.avgSentiment,
+    sentimentLabel: bucketLabel(row.avgSentiment ?? 0).label,
   }));
 }
 
@@ -268,38 +337,44 @@ export async function getIndicatorSnapshots(
 }
 
 export async function getSentimentBuckets(
-  limit = 4,
+  limit = 10,
 ): Promise<SentimentBucket[]> {
-  const overall = await db
-    .select({
-      score: sql<number | null>`avg(${documentChunks.sentiment})`,
-    })
-    .from(documentChunks);
+  const overall = await db.execute<{
+    score: number | null;
+  }>(sql`
+    select avg(dc.sentiment)::float as score
+    from document_chunks dc
+    join documents d on d.id = dc."documentId"
+    where d."publishedAt" >= now() - interval '3 days'
+  `);
 
   const result = await db.execute<{
     ticker: string;
     score: number | null;
+    mentions: number;
   }>(sql`
     select
       t.ticker,
-      avg(dc.sentiment)::float as score
+      avg(dc.sentiment)::float as score,
+      count(*)::int as mentions
     from documents d
     join document_chunks dc on dc."documentId" = d.id
     cross join lateral unnest(d.tickers) as t(ticker)
+    where d."publishedAt" >= now() - interval '3 days'
     group by t.ticker
     order by count(*) desc
-    limit ${limit - 1}
+    limit ${limit}
   `);
 
   const rows = getExecuteRows(result);
 
   const buckets: SentimentBucket[] = [];
 
-  const overallScore = overall[0]?.score ?? 0;
+  const overallScore = getExecuteRows(overall)[0]?.score ?? 0;
   const overallLabel = bucketLabel(overallScore);
   buckets.push({
     category: "Overall Market",
-    score: Math.round((overallScore ?? 0) * 100),
+    strength: Math.min(100, Math.round(Math.abs(overallScore ?? 0) * 100)),
     label: overallLabel.label,
     color: overallLabel.color,
   });
@@ -309,7 +384,8 @@ export async function getSentimentBuckets(
     const { label, color } = bucketLabel(score);
     buckets.push({
       category: row.ticker,
-      score: Math.round(score * 100),
+      strength: Math.min(100, Math.round(Math.abs(score) * 100)),
+      mentions: row.mentions,
       label,
       color,
     });

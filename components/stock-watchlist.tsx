@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Star } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Star } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TickerQuickLook } from "@/components/ticker-quick-look"
@@ -23,7 +23,9 @@ export function StockWatchlist({ entries }: StockWatchlistProps) {
             <p className="text-sm text-muted-foreground font-mono">No tickers mentioned yet.</p>
           )}
           {entries.map((stock) => {
-            const isPositive = (stock.sentiment ?? 0) >= 0
+            const isPositive = stock.sentimentLabel === "Bullish"
+            const isNegative = stock.sentimentLabel === "Bearish"
+            const SentimentIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus
             return (
               <div
                 key={stock.ticker}
@@ -33,11 +35,15 @@ export function StockWatchlist({ entries }: StockWatchlistProps) {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <TickerQuickLook ticker={stock.ticker} />
-                      {isPositive ? (
-                        <TrendingUp className="w-3 h-3 text-(--color-success)" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3 text-destructive" />
-                      )}
+                      <SentimentIcon
+                        className={`w-3 h-3 ${
+                          isPositive
+                            ? "text-(--color-success)"
+                            : isNegative
+                              ? "text-destructive"
+                              : "text-(--color-info)"
+                        }`}
+                      />
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {stock.latest ? `Last seen ${stock.latest.toLocaleDateString()}` : "No recent articles"}
@@ -45,8 +51,16 @@ export function StockWatchlist({ entries }: StockWatchlistProps) {
                   </div>
                   <div className="text-right space-y-1">
                     <p className="font-mono font-bold text-foreground">{stock.mentions} mentions</p>
-                    <p className={`text-xs font-mono ${isPositive ? "text-(--color-success)" : "text-destructive"}`}>
-                      {(stock.sentiment ?? 0).toFixed(2)} sentiment
+                    <p
+                      className={`text-xs font-mono ${
+                        isPositive
+                          ? "text-(--color-success)"
+                          : isNegative
+                            ? "text-destructive"
+                            : "text-(--color-info)"
+                      }`}
+                    >
+                      {stock.sentimentLabel}
                     </p>
                   </div>
                 </div>

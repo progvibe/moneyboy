@@ -1,5 +1,3 @@
-import { documentChunks } from '@/db/schema'
-
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
 type NewsLike = {
@@ -10,20 +8,38 @@ type NewsLike = {
   tickers?: string[]
 }
 
-export async function generateNewsSummary(items: NewsLike[]) {
+type NewsSummaryOptions = {
+  maxItems?: number
+  snippetMaxChars?: number
+}
+
+function truncateSnippet(text: string, maxChars: number) {
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars).trim()}…`
+}
+
+export async function generateNewsSummary(
+  items: NewsLike[],
+  options: NewsSummaryOptions = {},
+) {
+  const maxItems = options.maxItems ?? 20
+  const snippetMaxChars = options.snippetMaxChars ?? 220
+  const clipped = items.slice(0, maxItems)
+
   if (!OPENAI_API_KEY || items.length === 0) {
-    return items.length
-      ? `Top ${items.length} headlines summarized.`
+    return clipped.length
+      ? `Top ${clipped.length} headlines summarized.`
       : 'No headlines available.'
   }
 
-  const content = items
-    .map(
-      (item, idx) =>
-        `[${idx + 1}] (${item.sentiment}) ${item.title}${
-          item.tickers?.length ? ` [${item.tickers.join(', ')}]` : ''
-        }\n${item.summary}`,
-    )
+  const content = clipped
+    .map((item, idx) => {
+      const meta = `[${idx + 1}] (${item.sentiment}) ${item.title}${
+        item.tickers?.length ? ` [${item.tickers.join(', ')}]` : ''
+      }`
+      const snippet = truncateSnippet(item.summary, snippetMaxChars)
+      return `${meta}\n${snippet}`
+    })
     .join('\n\n')
 
   const prompt = `
@@ -51,7 +67,7 @@ ${content}
   })
 
   if (!res.ok) {
-    return `Top ${items.length} headlines summarized.`
+    return `Top ${clipped.length} headlines summarized.`
   }
 
   const json = await res.json()

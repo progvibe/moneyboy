@@ -17,16 +17,20 @@ import { getDashboardThemes } from "@/lib/queries/dashboard-themes";
 import { generateNewsSummary } from "@/lib/summary";
 
 export default async function Home() {
-  const [markets, news, watchlist, indicators, sentiments, themes] = await Promise.all([
+  const [markets, newsAll, watchlist, indicators, sentiments, themes] = await Promise.all([
     getMarketOverview(),
-    getLatestNews(5),
-    getWatchlistSnapshots(),
+    getLatestNews(50),
+    getWatchlistSnapshots(10),
     getIndicatorSnapshots(),
-    getSentimentBuckets(),
+    getSentimentBuckets(10),
     getDashboardThemes(),
   ]);
 
-  const newsSummary = await generateNewsSummary(news);
+  const news = newsAll.slice(0, 20);
+  const newsSummary = await generateNewsSummary(newsAll, {
+    maxItems: 50,
+    snippetMaxChars: 140,
+  });
 
   return (
     <div className="min-h-screen bg-background">

@@ -49,7 +49,11 @@ export function SentimentAnalysis({ buckets }: SentimentAnalysisProps) {
                     >
                       {item.label}
                     </span>
-                    <span className="text-sm font-mono text-muted-foreground">{item.score}</span>
+                    {typeof item.mentions === "number" && (
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {item.mentions} mentions
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
@@ -61,7 +65,7 @@ export function SentimentAnalysis({ buckets }: SentimentAnalysisProps) {
                           ? "bg-destructive"
                           : "bg-(--color-info)"
                     }`}
-                    style={{ width: `${item.score}%` }}
+                    style={{ width: `${item.strength}%` }}
                   />
                 </div>
               </div>
