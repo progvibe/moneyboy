@@ -16,6 +16,8 @@ import {
 import { getDashboardThemes } from "@/lib/queries/dashboard-themes";
 import { generateNewsSummary } from "@/lib/summary";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const [markets, newsAll, watchlist, indicators, sentiments, themes] = await Promise.all([
     getMarketOverview(),
