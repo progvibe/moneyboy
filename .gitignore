@@ -26,3 +26,4 @@ bun.lockb
 
 # misc
 .DS_Store
+ingest/tiingo/.venv/

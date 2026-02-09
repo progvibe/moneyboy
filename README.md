@@ -244,3 +244,49 @@ If you'd like, I can also generate:
 - A **Figma-style design spec** for the dashboard and search page
 
 Just tell me!
+
+---
+
+## 📰 Tiingo Ingestion (Python + Cloud Run Jobs)
+
+### Local run (WSL2)
+
+```bash
+pnpm ingest:tiingo:venv
+pnpm ingest:tiingo:local
+```
+
+### Docker run
+
+```bash
+pnpm ingest:tiingo:docker:build
+pnpm ingest:tiingo:docker:run
+```
+
+### GCP setup
+
+Enable required services:
+
+```bash
+pnpm gcp:tiingo:enable
+```
+
+Create secrets (run manually, do not automate):
+
+```bash
+echo -n "$TIINGO_API_TOKEN" | gcloud secrets create TIINGO_API_TOKEN --data-file=-
+echo -n "$DATABASE_URL" | gcloud secrets create DATABASE_URL --data-file=-
+```
+
+Deploy and run the job:
+
+```bash
+pnpm gcp:tiingo:deploy
+pnpm gcp:tiingo:run
+```
+
+Create or update Cloud Scheduler (every 30 minutes, America/Detroit):
+
+```bash
+pnpm gcp:tiingo:schedule
+```

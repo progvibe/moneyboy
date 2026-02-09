@@ -11,21 +11,30 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-export const documents = pgTable('documents', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  source: text('source').notNull(),
-  title: text('title').notNull(),
-  body: text('body').notNull(),
-  url: text('url').notNull(),
-  tickers: text('tickers')
-    .array()
-    .notNull()
-    .default(sql`ARRAY[]::text[]`),
-  publishedAt: timestamp('publishedAt', { withTimezone: true }).notNull(),
-  ingestedAt: timestamp('ingestedAt', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-})
+export const documents = pgTable(
+  'documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    source: text('source').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    url: text('url').notNull(),
+    tickers: text('tickers')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
+    publishedAt: timestamp('publishedAt', { withTimezone: true }).notNull(),
+    ingestedAt: timestamp('ingestedAt', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    sourceUrlIdx: uniqueIndex('documents_source_url_uq').on(
+      table.source,
+      table.url,
+    ),
+  }),
+)
 
 export const tickers = pgTable(
   'tickers',

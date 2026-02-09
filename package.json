@@ -18,7 +18,15 @@
     "embeddings:backfill": "tsx scripts/backfill-embeddings.ts",
     "themes:generate": "tsx scripts/generate-dashboard-themes.ts",
     "cron:status": "tsx scripts/cron-status.ts",
-    "cron:ingest": "tsx scripts/cron-ingest.ts"
+    "cron:ingest": "tsx scripts/cron-ingest.ts",
+    "ingest:tiingo:venv": "bash -lc 'cd ingest/tiingo && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt'",
+    "ingest:tiingo:local": "bash -lc 'cd ingest/tiingo && source .venv/bin/activate && python ingest.py'",
+    "ingest:tiingo:docker:build": "docker build -t moneyboy-tiingo-ingest -f ingest/tiingo/Dockerfile .",
+    "ingest:tiingo:docker:run": "docker run --rm --env-file .env moneyboy-tiingo-ingest",
+    "gcp:tiingo:enable": "bash scripts/gcp-enable-services.sh",
+    "gcp:tiingo:deploy": "bash scripts/gcp-deploy-tiingo.sh",
+    "gcp:tiingo:run": "bash scripts/gcp-run-tiingo.sh",
+    "gcp:tiingo:schedule": "bash scripts/gcp-schedule-tiingo.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
