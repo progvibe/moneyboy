@@ -6,6 +6,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
 const DEFAULT_WINDOW_HOURS = 24
 const DEFAULT_THEME_COUNT = 6
+const DEFAULT_THEME_TICKER_LIMIT = 6
 const MAX_CHUNKS = 300
 const MAX_THEMES = 10
 const MIN_THEMES = 3
@@ -168,7 +169,7 @@ function kmeans(items: ClusterItem[], k: number, iterations = 6): Cluster[] {
   return clusters.filter((cluster) => cluster.items.length > 0)
 }
 
-function topTickers(items: ClusterItem[], limit = 3) {
+function topTickers(items: ClusterItem[], limit = DEFAULT_THEME_TICKER_LIMIT) {
   const counts = new Map<string, number>()
   items.forEach((item) => {
     item.tickers.forEach((ticker) => {
@@ -335,7 +336,7 @@ async function buildDashboardThemes(windowHours: number, k: number): Promise<Das
       .slice(0, 3)
       .map((entry) => entry.item)
 
-    const tickers = topTickers(cluster.items, 3)
+    const tickers = topTickers(cluster.items)
     const label = copy.themes[idx]?.label ?? `Theme ${idx + 1}`
     const summary = copy.themes[idx]?.summary ?? truncate(ranked[0]?.text ?? '', 140)
     const querySeed = tickers.length ? `${label} ${tickers.join(' ')}` : label
