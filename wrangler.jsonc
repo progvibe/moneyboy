@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moneyboy-ingest",
+  "main": "ingest/cloudflare/src/index.ts",
+  "compatibility_date": "2026-04-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "4e6dfbfba59b4bf6aa38a78c397c401b"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "TICKER_JOBS",
+        "queue": "ticker-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "ticker-jobs",
+        "max_batch_size": 1,
+        "max_batch_timeout": 30,
+        "max_retries": 3
+      }
+    ]
+  }
+}

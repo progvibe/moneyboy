@@ -3,6 +3,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -35,7 +36,16 @@ export const tickers = pgTable(
     exchange: text('exchange').notNull(),
     name: text('name'),
     active: boolean('active').notNull().default(true),
+    enabled: boolean('enabled').notNull().default(true),
+    priority: integer('priority').notNull().default(0),
     lastSyncedAt: timestamp('lastSyncedAt', { withTimezone: true }),
+    lastPriceIngestedAt: timestamp('last_price_ingested_at', {
+      withTimezone: true,
+    }),
+    lastNewsIngestedAt: timestamp('last_news_ingested_at', {
+      withTimezone: true,
+    }),
+    lastSentimentAt: timestamp('last_sentiment_at', { withTimezone: true }),
     createdAt: timestamp('createdAt', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -48,6 +58,7 @@ export const tickers = pgTable(
     lastSyncedIdx: index('tickers_last_synced_idx').on(
       table.lastSyncedAt,
     ),
+    priorityIdx: index('tickers_priority_idx').on(table.priority),
   }),
 )
 
@@ -100,6 +111,55 @@ export const ingestionRunProgress = pgTable(
   },
   (table) => ({
     statusIdx: index('ingestion_run_progress_status_idx').on(table.status),
+  }),
+)
+
+export const tickerIngestionState = pgTable(
+  'ticker_ingestion_state',
+  {
+    symbol: text('symbol').notNull(),
+    source: text('source').notNull(),
+    cursor: text('cursor'),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    lastError: text('last_error'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.symbol, table.source] }),
+  }),
+)
+
+export const tickerPrices = pgTable(
+  'ticker_prices',
+  {
+    symbol: text('symbol').primaryKey(),
+    provider: text('provider').notNull(),
+    price: real('price').notNull(),
+    change: real('change'),
+    percentChange: real('percent_change'),
+    pricedAt: timestamp('priced_at', { withTimezone: true }).notNull(),
+    ingestedAt: timestamp('ingested_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    pricedAtIdx: index('ticker_prices_priced_at_idx').on(table.pricedAt),
+  }),
+)
+
+export const tickerSentiments = pgTable(
+  'ticker_sentiments',
+  {
+    symbol: text('symbol').primaryKey(),
+    label: text('label').notNull(),
+    score: real('score').notNull(),
+    articleCount: integer('article_count').notNull().default(0),
+    windowDays: integer('window_days').notNull().default(21),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    labelIdx: index('ticker_sentiments_label_idx').on(table.label),
   }),
 )
 

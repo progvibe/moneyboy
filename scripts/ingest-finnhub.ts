@@ -16,7 +16,7 @@ async function main() {
 
   const maxTickers = 500;
   const tickerRows = await getTickerBatch(maxTickers);
-  const tickers = tickerRows.map((row) => row.symbol);
+  const tickers = tickerRows.map((row: { symbol: string }) => row.symbol);
 
   if (tickers.length === 0) {
     console.log("No active tickers found for company-news ingestion.");

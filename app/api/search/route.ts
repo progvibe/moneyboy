@@ -135,7 +135,10 @@ export async function POST(req: Request) {
 
     const tickerArray = tickers?.length
       ? buildTickerArray(
-          tickers.map((t: string) => t.trim()).filter(Boolean).map((t) => t.toUpperCase()),
+          tickers
+            .map((t: string) => t.trim())
+            .filter(Boolean)
+            .map((t: string) => t.toUpperCase()),
         )
       : null
 

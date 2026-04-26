@@ -272,7 +272,6 @@ export async function runIngestionPipeline(runId: string): Promise<RunResult> {
     logRun(runId, {
       event: 'embeddings',
       updated: embeddingResult.updated,
-      total: embeddingResult.total,
     })
 
     await updateProgress(runId, {

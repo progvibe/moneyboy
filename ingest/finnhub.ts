@@ -406,7 +406,7 @@ export async function getTickerBatch(limit: number) {
     limit ${safeLimit}
   `);
 
-  return Array.isArray(result) ? result : result.rows ?? [];
+  return result;
 }
 
 export async function markTickersSynced(

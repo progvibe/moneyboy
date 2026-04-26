@@ -291,13 +291,20 @@ export async function getWatchlistSnapshots(
 
   const rows = getExecuteRows(result);
 
-  return rows.map((row) => ({
-    ticker: row.ticker,
-    mentions: row.mentions,
-    latest: row.latest ? new Date(row.latest) : null,
-    sentiment: row.avgSentiment,
-    sentimentLabel: bucketLabel(row.avgSentiment ?? 0).label,
-  }));
+  return rows.map((row) => {
+    const sentimentLabel = bucketLabel(row.avgSentiment ?? 0).label as
+      | "Bullish"
+      | "Bearish"
+      | "Neutral";
+
+    return {
+      ticker: row.ticker,
+      mentions: row.mentions,
+      latest: row.latest ? new Date(row.latest) : null,
+      sentiment: row.avgSentiment,
+      sentimentLabel,
+    };
+  });
 }
 
 export async function getIndicatorSnapshots(
