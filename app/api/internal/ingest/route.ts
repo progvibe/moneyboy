@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     });
 
     const tickerRows = await getTickerBatch(500);
-    const tickers = tickerRows.map((row) => row.symbol);
+    const tickers = tickerRows.map((row: { symbol: string }) => row.symbol);
 
     if (tickers.length === 0) {
       await db
