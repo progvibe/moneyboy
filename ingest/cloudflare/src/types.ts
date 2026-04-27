@@ -9,6 +9,8 @@ export type Env = {
   TIINGO_API_TOKEN?: string
   OPENAI_API_KEY?: string
   INGEST_SECRET?: string
+  INGEST_SYMBOLS?: string
+  INGEST_TICKER_LIMIT?: string
   HYPERDRIVE?: { connectionString: string }
   TICKER_JOBS: QueueProducer<Job>
 }
