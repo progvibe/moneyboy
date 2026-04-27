@@ -21,16 +21,41 @@ const DEFAULT_FALLBACK_SYMBOLS = [
   'XOM',
   'RKT',
 ]
+const DEFAULT_INGEST_SYMBOLS = ['AAPL', 'TSLA', 'NVDA']
+const DEFAULT_INGEST_TICKER_LIMIT = 3
+
+function parseConfiguredSymbols(raw?: string) {
+  if (!raw) return DEFAULT_INGEST_SYMBOLS
+
+  const parsed = raw
+    .split(',')
+    .map((symbol) => symbol.trim().toUpperCase())
+    .filter(Boolean)
+
+  return parsed.length ? Array.from(new Set(parsed)) : DEFAULT_INGEST_SYMBOLS
+}
+
+function parseTickerLimit(raw?: string) {
+  if (!raw) return DEFAULT_INGEST_TICKER_LIMIT
+
+  const parsed = Number.parseInt(raw, 10)
+  if (Number.isNaN(parsed) || parsed <= 0) return DEFAULT_INGEST_TICKER_LIMIT
+  return parsed
+}
 
 async function runScheduledIngest(env: Env) {
   const { db, close } = createDb(env)
   const run = await createIngestionRun(db, 'cloudflare-cron')
 
   try {
-    const rows = await listEnabledTickers(db, 25)
+    const configuredSymbols = parseConfiguredSymbols(env.INGEST_SYMBOLS)
+    const tickerLimit = parseTickerLimit(env.INGEST_TICKER_LIMIT)
+    const rows = await listEnabledTickers(db, tickerLimit, configuredSymbols)
     const symbols = rows.length
       ? rows.map((row) => row.symbol)
-      : DEFAULT_FALLBACK_SYMBOLS
+      : configuredSymbols.length
+        ? configuredSymbols
+        : DEFAULT_FALLBACK_SYMBOLS
     const jobCount = await enqueueTickerJobs(env, symbols)
 
     await completeIngestionRun(db, run.id, 'success', {
