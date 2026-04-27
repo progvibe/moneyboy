@@ -46,6 +46,10 @@ const CLOUDFLARE_CADENCE_LABEL = "Every 15 minutes";
 const CLOUDFLARE_TICKER_LIMIT = 3;
 const CLOUDFLARE_CONFIGURED_SYMBOLS = ["AAPL", "TSLA", "NVDA"];
 const CLOUDFLARE_JOB_TYPES = ["price", "news", "sentiment"];
+const CLOUDFLARE_SYMBOLS_SQL = sql`array[${sql.join(
+  CLOUDFLARE_CONFIGURED_SYMBOLS.map((symbol) => sql`${symbol}`),
+  sql`, `,
+)}]::text[]`;
 
 function getExecuteRows<T>(result: { rows?: T[] } | T[]): T[] {
   if (Array.isArray(result)) return result;
@@ -76,7 +80,7 @@ export async function getIngestionOverview(): Promise<IngestionOverview> {
       from tickers
       where active = true
         and enabled = true
-        and symbol = any(${CLOUDFLARE_CONFIGURED_SYMBOLS}::text[])
+        and symbol = any(${CLOUDFLARE_SYMBOLS_SQL})
       order by priority asc, "lastSyncedAt" asc nulls first, symbol asc
       limit ${CLOUDFLARE_TICKER_LIMIT}
     `),
@@ -123,9 +127,9 @@ export async function getIngestionOverview(): Promise<IngestionOverview> {
       left join ticker_ingestion_state s
         on s.symbol = t.symbol
        and s.source like '%:cloudflare'
-      where t.symbol = any(${CLOUDFLARE_CONFIGURED_SYMBOLS}::text[])
+      where t.symbol = any(${CLOUDFLARE_SYMBOLS_SQL})
       group by t.symbol
-      order by array_position(${CLOUDFLARE_CONFIGURED_SYMBOLS}::text[], t.symbol)
+      order by array_position(${CLOUDFLARE_SYMBOLS_SQL}, t.symbol)
     `),
   ]);
 
