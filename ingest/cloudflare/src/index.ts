@@ -8,13 +8,29 @@ import { processJob } from './jobs'
 import { enqueueTickerJobs } from './queue'
 import type { Env, ExecutionContextLike, Job, MessageBatch } from './types'
 
+const DEFAULT_FALLBACK_SYMBOLS = [
+  'AAPL',
+  'MSFT',
+  'NVDA',
+  'AMZN',
+  'GOOGL',
+  'META',
+  'TSLA',
+  'AMD',
+  'JPM',
+  'XOM',
+  'RKT',
+]
+
 async function runScheduledIngest(env: Env) {
   const { db, close } = createDb(env)
   const run = await createIngestionRun(db, 'cloudflare-cron')
 
   try {
-    const rows = await listEnabledTickers(db, 3, ['AAPL', 'TSLA', 'NVDA'])
-    const symbols = rows.map((row) => row.symbol)
+    const rows = await listEnabledTickers(db, 25)
+    const symbols = rows.length
+      ? rows.map((row) => row.symbol)
+      : DEFAULT_FALLBACK_SYMBOLS
     const jobCount = await enqueueTickerJobs(env, symbols)
 
     await completeIngestionRun(db, run.id, 'success', {
@@ -55,7 +71,7 @@ export default {
       const body = (await request.json().catch(() => null)) as {
         symbols?: string[]
       } | null
-      const symbols = (body?.symbols?.length ? body.symbols : ['AAPL', 'TSLA', 'NVDA'])
+      const symbols = (body?.symbols?.length ? body.symbols : DEFAULT_FALLBACK_SYMBOLS)
         .map((symbol) => symbol.trim().toUpperCase())
         .filter(Boolean)
       const jobs = await enqueueTickerJobs(env, Array.from(new Set(symbols)))

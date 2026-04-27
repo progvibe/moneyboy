@@ -6,6 +6,7 @@ import {
   documents,
   ingestionRunProgress,
   ingestionRuns,
+  importantTickers,
   tickerIngestionState,
   tickerPrices,
   tickerSentiments,
@@ -102,7 +103,7 @@ export async function completeIngestionRun(
 
 export async function listEnabledTickers(
   db: Db,
-  limit = 3,
+  limit = 25,
   symbols?: string[],
 ) {
   const filters = [eq(tickers.active, true), eq(tickers.enabled, true)]
@@ -113,8 +114,11 @@ export async function listEnabledTickers(
   return db
     .select({ symbol: tickers.symbol })
     .from(tickers)
+    .leftJoin(importantTickers, eq(importantTickers.symbol, tickers.symbol))
     .where(and(...filters))
-    .orderBy(sql`${tickers.priority} asc, ${tickers.lastSyncedAt} asc nulls first, ${tickers.symbol} asc`)
+    .orderBy(
+      sql`${importantTickers.rank} asc nulls last, ${tickers.priority} asc, ${tickers.lastSyncedAt} asc nulls first, ${tickers.symbol} asc`,
+    )
     .limit(limit)
 }
 
