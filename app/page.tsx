@@ -4,6 +4,7 @@ import { StockWatchlist } from "@/components/stock-watchlist";
 import { EconomicIndicators } from "@/components/economic-indicators";
 import { SentimentAnalysis } from "@/components/sentiment-analysis";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { IngestionOverview } from "@/components/ingestion-overview";
 import { NewsSummary } from "@/components/news-summary";
 import { TopThemesCard } from "@/components/top-themes-card";
 import {
@@ -14,18 +15,20 @@ import {
   getWatchlistSnapshots,
 } from "@/lib/queries/dashboard";
 import { getDashboardThemes } from "@/lib/queries/dashboard-themes";
+import { getIngestionOverview } from "@/lib/queries/ingestion";
 import { generateNewsSummary } from "@/lib/summary";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [markets, newsAll, watchlist, indicators, sentiments, themes] = await Promise.all([
+  const [markets, newsAll, watchlist, indicators, sentiments, themes, ingestion] = await Promise.all([
     getMarketOverview(),
     getLatestNews(50),
     getWatchlistSnapshots(10),
     getIndicatorSnapshots(),
     getSentimentBuckets(10),
     getDashboardThemes(),
+    getIngestionOverview(),
   ]);
 
   const news = newsAll.slice(0, 20);
@@ -41,6 +44,8 @@ export default async function Home() {
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Market Overview */}
         <MarketOverview markets={markets} />
+
+        <IngestionOverview overview={ingestion} />
 
         <TopThemesCard
           generatedAt={themes.generatedAt}
