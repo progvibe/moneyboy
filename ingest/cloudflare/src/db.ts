@@ -4,6 +4,7 @@ import postgres from 'postgres'
 import {
   documentChunks,
   documents,
+  ingestionRunProgress,
   ingestionRuns,
   tickerIngestionState,
   tickerPrices,
@@ -49,6 +50,17 @@ export async function createIngestionRun(
     })
     .returning()
 
+  await db.insert(ingestionRunProgress).values({
+    runId: run.id,
+    status: 'running',
+    stage: 'queueing',
+    progress: 10,
+    message: 'Queueing Cloudflare ingestion jobs.',
+    startedAt: run.startedAt,
+    updatedAt: run.startedAt,
+    metadata: metadata ? JSON.stringify(metadata) : undefined,
+  })
+
   return run
 }
 
@@ -59,15 +71,33 @@ export async function completeIngestionRun(
   metadata?: Record<string, unknown>,
   error?: string,
 ) {
+  const completedAt = new Date()
+
   await db
     .update(ingestionRuns)
     .set({
       status,
-      completedAt: new Date(),
+      completedAt,
       metadata: metadata ? JSON.stringify(metadata) : undefined,
       error,
     })
     .where(eq(ingestionRuns.id, runId))
+
+  await db
+    .update(ingestionRunProgress)
+    .set({
+      status,
+      stage: status === 'success' ? 'queued' : 'error',
+      progress: 100,
+      message:
+        status === 'success'
+          ? 'Cloudflare ingestion jobs queued.'
+          : error ?? 'Cloudflare ingestion failed.',
+      completedAt,
+      updatedAt: completedAt,
+      metadata: metadata ? JSON.stringify(metadata) : undefined,
+    })
+    .where(eq(ingestionRunProgress.runId, runId))
 }
 
 export async function listEnabledTickers(

@@ -20,6 +20,18 @@ type RunResult = {
   completedAt?: string | null
 }
 
+type RunProgress = {
+  runId: string
+  runType: string
+  status: string
+  stage: string
+  progress: number
+  message?: string | null
+  startedAt: Date
+  updatedAt: Date
+  completedAt?: Date | null
+}
+
 const MAX_TICKERS_PER_RUN = 200
 const COMPANY_NEWS_MAX_PER_TICKER = 20
 const COMPANY_NEWS_DELAY_MS = 250
@@ -95,46 +107,113 @@ async function markRunTimedOut(runId: string) {
     .where(eq(ingestionRuns.id, runId))
 }
 
+function isCloudflareRun(runType: string) {
+  return runType.startsWith('cloudflare')
+}
+
+function getSyntheticRunProgress(row: typeof ingestionRuns.$inferSelect): RunProgress {
+  const completedAt = row.completedAt ?? null
+  const isCloudflare = isCloudflareRun(row.runType)
+  const isSuccess = row.status === 'success'
+  const isError = row.status === 'error'
+
+  return {
+    runId: row.id,
+    runType: row.runType,
+    status: row.status,
+    stage: isSuccess ? (isCloudflare ? 'queued' : 'done') : isError ? 'error' : 'started',
+    progress: isSuccess || isError ? 100 : isCloudflare ? 25 : 5,
+    message: isSuccess
+      ? isCloudflare
+        ? 'Cloudflare ingestion jobs queued.'
+        : 'Sync completed.'
+      : row.error ?? (isCloudflare ? 'Cloudflare ingestion is starting.' : 'Starting ingestion pipeline.'),
+    startedAt: row.startedAt,
+    updatedAt: completedAt ?? row.startedAt,
+    completedAt,
+  }
+}
+
+function mergeRunProgress(
+  run: typeof ingestionRuns.$inferSelect,
+  progress?: typeof ingestionRunProgress.$inferSelect | null,
+): RunProgress {
+  if (!progress) return getSyntheticRunProgress(run)
+
+  return {
+    runId: run.id,
+    runType: run.runType,
+    status: progress.status,
+    stage: progress.stage,
+    progress: progress.progress,
+    message: progress.message,
+    startedAt: progress.startedAt,
+    updatedAt: progress.updatedAt,
+    completedAt: progress.completedAt,
+  }
+}
+
 export async function getLatestRunProgress(runId?: string | null) {
   if (runId) {
-    const rows = await db
+    const runRows = await db
+      .select()
+      .from(ingestionRuns)
+      .where(eq(ingestionRuns.id, runId))
+      .limit(1)
+    const run = runRows[0]
+    if (!run) return null
+
+    const progressRows = await db
       .select()
       .from(ingestionRunProgress)
       .where(eq(ingestionRunProgress.runId, runId))
       .limit(1)
-    const row = rows[0]
-    if (row && row.status === 'running' && isStaleRun(row.updatedAt)) {
-      await markRunTimedOut(row.runId)
+    const progress = progressRows[0]
+    const status = mergeRunProgress(run, progress)
+
+    if (status.status === 'running' && isStaleRun(status.updatedAt)) {
+      await markRunTimedOut(status.runId)
       return {
-        ...row,
+        ...status,
         status: 'error',
         stage: 'timeout',
-        progress: row.progress ?? 100,
+        progress: 100,
         message: STALE_RUN_MESSAGE,
         completedAt: new Date(),
+        updatedAt: new Date(),
       }
     }
-    return row ?? null
+    return status
   }
 
   const rows = await db
     .select()
-    .from(ingestionRunProgress)
-    .orderBy(desc(ingestionRunProgress.startedAt))
+    .from(ingestionRuns)
+    .orderBy(desc(ingestionRuns.startedAt))
     .limit(1)
-  const row = rows[0]
-  if (row && row.status === 'running' && isStaleRun(row.updatedAt)) {
-    await markRunTimedOut(row.runId)
+  const run = rows[0]
+  if (!run) return null
+
+  const progressRows = await db
+    .select()
+    .from(ingestionRunProgress)
+    .where(eq(ingestionRunProgress.runId, run.id))
+    .limit(1)
+  const status = mergeRunProgress(run, progressRows[0])
+
+  if (status.status === 'running' && isStaleRun(status.updatedAt)) {
+    await markRunTimedOut(status.runId)
     return {
-      ...row,
+      ...status,
       status: 'error',
       stage: 'timeout',
-      progress: row.progress ?? 100,
+      progress: 100,
       message: STALE_RUN_MESSAGE,
       completedAt: new Date(),
+      updatedAt: new Date(),
     }
   }
-  return row ?? null
+  return status
 }
 
 export async function startIngestionRun(runType: 'cron' | 'manual' = 'cron') {
