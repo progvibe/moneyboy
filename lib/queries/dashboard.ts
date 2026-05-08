@@ -190,7 +190,7 @@ export async function getLatestNews(limit = 3): Promise<NewsItem[]> {
       d.url,
       d."publishedAt",
       d.tickers,
-      left(d.body, 220) as summary,
+      d.title as summary,
       avg(dc.sentiment)::float as sentiment,
       pr.rank as "priorityRank"
     from documents d
@@ -238,7 +238,7 @@ export async function getLatestNews(limit = 3): Promise<NewsItem[]> {
       d.url,
       d."publishedAt",
       d.tickers,
-      left(d.body, 220) as summary,
+      d.title as summary,
       avg(dc.sentiment)::float as sentiment
     from documents d
     left join document_chunks dc on dc."documentId" = d.id
