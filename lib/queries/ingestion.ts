@@ -24,6 +24,10 @@ export type IngestionTickerState = {
   priceAt: Date | null;
   newsAt: Date | null;
   sentimentAt: Date | null;
+  latestPrice: number | null;
+  priceChange: number | null;
+  percentChange: number | null;
+  pricedAt: Date | null;
   lastError: string | null;
 };
 
@@ -122,13 +126,19 @@ export async function getIngestionOverview(): Promise<IngestionOverview> {
         max(s.last_success_at) filter (where s.source = 'price:cloudflare') as "priceAt",
         max(s.last_success_at) filter (where s.source = 'news:cloudflare') as "newsAt",
         max(s.last_success_at) filter (where s.source = 'sentiment:cloudflare') as "sentimentAt",
+        p.price as "latestPrice",
+        p.change as "priceChange",
+        p.percent_change as "percentChange",
+        p.priced_at as "pricedAt",
         max(s.last_error) filter (where s.last_error is not null) as "lastError"
       from tickers t
       left join ticker_ingestion_state s
         on s.symbol = t.symbol
        and s.source like '%:cloudflare'
+      left join ticker_prices p
+        on p.symbol = t.symbol
       where t.symbol = any(${CLOUDFLARE_SYMBOLS_SQL})
-      group by t.symbol
+      group by t.symbol, p.price, p.change, p.percent_change, p.priced_at
       order by array_position(${CLOUDFLARE_SYMBOLS_SQL}, t.symbol)
     `),
   ]);

@@ -38,12 +38,21 @@ export async function fetchPrice(
   symbol: string,
   token: string,
 ): Promise<PriceQuote> {
+  const startDate = formatDate(new Date(Date.now() - 10 * 86_400_000))
   const url = `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(
     symbol,
-  )}/prices?token=${encodeURIComponent(token)}`
+  )}/prices?startDate=${startDate}&token=${encodeURIComponent(token)}`
   const prices = await fetchJson<TiingoPrice[]>(url, token)
-  const latest = prices[0]
+  const sortedPrices = prices
+    .filter((item) => item.date && (item.adjClose ?? item.close) != null)
+    .sort((a, b) => new Date(a.date ?? '').getTime() - new Date(b.date ?? '').getTime())
+  const latest = sortedPrices.at(-1)
+  const previous = sortedPrices.at(-2)
   const price = latest?.adjClose ?? latest?.close
+  const previousClose = previous?.adjClose ?? previous?.close
+  const change = price != null && previousClose != null ? price - previousClose : null
+  const percentChange =
+    change != null && previousClose ? (change / previousClose) * 100 : null
 
   if (!price) {
     throw new Error(`Tiingo returned no current price for ${symbol}`)
@@ -52,7 +61,9 @@ export async function fetchPrice(
   return {
     provider: 'tiingo',
     price,
-    pricedAt: latest.date ? new Date(latest.date) : new Date(),
+    change,
+    percentChange,
+    pricedAt: latest?.date ? new Date(latest.date) : new Date(),
   }
 }
 
