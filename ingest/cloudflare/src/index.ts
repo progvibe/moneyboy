@@ -10,16 +10,8 @@ import type { Env, ExecutionContextLike, Job, MessageBatch } from './types'
 
 const DEFAULT_FALLBACK_SYMBOLS = [
   'AAPL',
-  'MSFT',
-  'NVDA',
-  'AMZN',
-  'GOOGL',
-  'META',
   'TSLA',
-  'AMD',
-  'JPM',
-  'XOM',
-  'RKT',
+  'NVDA',
 ]
 
 async function runScheduledIngest(env: Env) {
@@ -27,7 +19,11 @@ async function runScheduledIngest(env: Env) {
   const run = await createIngestionRun(db, 'cloudflare-cron')
 
   try {
-    const rows = await listEnabledTickers(db, 25)
+    const rows = await listEnabledTickers(
+      db,
+      DEFAULT_FALLBACK_SYMBOLS.length,
+      DEFAULT_FALLBACK_SYMBOLS,
+    )
     const symbols = rows.length
       ? rows.map((row) => row.symbol)
       : DEFAULT_FALLBACK_SYMBOLS
