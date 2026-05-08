@@ -26,6 +26,41 @@ function formatTime(date: Date | string | null | undefined) {
   });
 }
 
+
+function formatPrice(value: number | null | undefined) {
+  if (value == null) return "No price";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 2 : 4,
+  }).format(value);
+}
+
+function getPercentChange(
+  latestPrice: number | null | undefined,
+  priceChange: number | null | undefined,
+  percentChange: number | null | undefined,
+) {
+  if (percentChange != null) return percentChange;
+  if (latestPrice == null || priceChange == null) return null;
+  const previousClose = latestPrice - priceChange;
+  if (previousClose === 0) return null;
+  return (priceChange / previousClose) * 100;
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value == null) return "n/a";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+}
+
+function percentClasses(value: number | null | undefined) {
+  if (value == null) return "border-border text-muted-foreground";
+  if (value > 0) return "border-(--color-success)/30 text-(--color-success)";
+  if (value < 0) return "border-destructive/40 text-destructive";
+  return "border-border text-muted-foreground";
+}
+
 function formatDuration(start: Date | string, end?: Date | string | null) {
   const startedAt = start instanceof Date ? start : new Date(start);
   const endedAt = end ? (end instanceof Date ? end : new Date(end)) : new Date();
@@ -197,25 +232,49 @@ export function IngestionOverview({ overview }: IngestionOverviewProps) {
           <div className="rounded-lg border border-border bg-background/40 p-4">
             <p className="text-xs font-mono text-muted-foreground uppercase">Ticker Coverage</p>
             <div className="mt-3 space-y-2">
-              {overview.tickerStates.map((ticker) => (
-                <div
-                  key={ticker.symbol}
-                  className="grid grid-cols-[56px_1fr] gap-3 rounded-md border border-border bg-secondary/20 px-3 py-2"
-                >
-                  <div className="font-mono font-bold text-foreground">{ticker.symbol}</div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <span className="text-muted-foreground">P {formatTime(ticker.priceAt)}</span>
-                    <span className="text-muted-foreground">N {formatTime(ticker.newsAt)}</span>
-                    <span className="text-muted-foreground">S {formatTime(ticker.sentimentAt)}</span>
-                  </div>
-                  {ticker.lastError ? (
-                    <div className="col-span-2 flex items-start gap-2 text-xs text-destructive">
-                      <AlertTriangle className="mt-0.5 w-3 h-3 shrink-0" />
-                      <span className="line-clamp-2">{ticker.lastError}</span>
+              {overview.tickerStates.map((ticker) => {
+                const percentChange = getPercentChange(
+                  ticker.latestPrice,
+                  ticker.priceChange,
+                  ticker.percentChange,
+                );
+
+                return (
+                  <div
+                    key={ticker.symbol}
+                    className="rounded-md border border-border bg-secondary/20 px-3 py-2"
+                  >
+                    <div className="grid grid-cols-[56px_1fr_auto] items-start gap-3">
+                      <div className="font-mono font-bold text-foreground">{ticker.symbol}</div>
+                      <div>
+                        <p className="font-mono text-sm text-foreground">
+                          {formatPrice(ticker.latestPrice)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          As of {formatTime(ticker.pricedAt ?? ticker.priceAt)}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`font-mono text-xs ${percentClasses(percentChange)}`}
+                      >
+                        {formatPercent(percentChange)}
+                      </Badge>
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                      <span className="text-muted-foreground">P {formatTime(ticker.priceAt)}</span>
+                      <span className="text-muted-foreground">N {formatTime(ticker.newsAt)}</span>
+                      <span className="text-muted-foreground">S {formatTime(ticker.sentimentAt)}</span>
+                    </div>
+                    {ticker.lastError ? (
+                      <div className="mt-2 flex items-start gap-2 text-xs text-destructive">
+                        <AlertTriangle className="mt-0.5 w-3 h-3 shrink-0" />
+                        <span className="line-clamp-2">{ticker.lastError}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
