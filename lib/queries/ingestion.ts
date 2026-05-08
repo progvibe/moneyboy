@@ -41,8 +41,8 @@ export type IngestionOverview = {
   tickerStates: IngestionTickerState[];
 };
 
-const CLOUDFLARE_CRON = "*/15 * * * *";
-const CLOUDFLARE_CADENCE_LABEL = "Every 15 minutes";
+const CLOUDFLARE_CRON = "0 * * * *";
+const CLOUDFLARE_CADENCE_LABEL = "Hourly";
 const CLOUDFLARE_TICKER_LIMIT = 3;
 const CLOUDFLARE_CONFIGURED_SYMBOLS = ["AAPL", "TSLA", "NVDA"];
 const CLOUDFLARE_JOB_TYPES = ["price", "news", "sentiment"];
